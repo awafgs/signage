@@ -311,34 +311,6 @@
             isEmergency: false  // EEW受信時はTrue
         };
 
-        // デバッグ用: 'E'キーでEEWテスト
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'e' || e.key === 'E') {
-                console.log("Debug: Simulating EEW");
-                statusState.isEmergency = true;
-                statusState.eewItem = {
-                    type: 'eew',
-                    content: `【テスト】緊急地震速報を受信しました`,
-                    subContent: `これはテストです。強い揺れに警戒してください`,
-                    time: 'TEST ALERT',
-                    title: 'EMERGENCY ALERT (TEST)',
-                    icon: 'alert-triangle',
-                    color: 'text-white',
-                    bgClass: 'bg-red-600 border-red-500 animate-pulse-red',
-                    textClass: 'text-white font-bold',
-                    isHighAlert: true
-                };
-                renderStatusSlide();
-            }
-            if (e.key === 'c' || e.key === 'C') {
-                console.log("Debug: Cancel EEW");
-                statusState.isEmergency = false;
-                statusState.eewItem = null;
-                renderStatusSlide();
-            }
-        });
-
-
         // --- データ取得ロジック ---
 
         // 3-1. 鉄道情報 (Bluesky)
@@ -682,3 +654,4 @@
     </script>
 </body>
 </html>
+

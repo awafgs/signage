@@ -93,6 +93,17 @@
 </head>
 <body>
 
+    <!-- Start Overlay (Audio Enabler) -->
+    <div id="start-overlay" class="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center cursor-pointer transition-opacity duration-700">
+        <div class="relative">
+            <div class="absolute inset-0 bg-orange-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
+            <i data-lucide="power" class="relative w-24 h-24 text-orange-500 mb-6"></i>
+        </div>
+        <div class="text-3xl md:text-5xl font-bold text-white tracking-widest font-eng mb-2">TAP TO START</div>
+        <div class="text-gray-400 mt-2 text-sm md:text-base">音声通知を有効にするため画面をタップしてください</div>
+        <div class="mt-8 px-6 py-2 border border-white/20 rounded-full text-xs text-gray-500">Audio System Ready</div>
+    </div>
+
     <!-- Main Container -->
     <div id="dashboard-container">
         
@@ -151,7 +162,7 @@
                 <!-- Footer decoration -->
                 <div class="mt-8 flex items-center gap-4">
                     <div class="text-[10px] md:text-xs text-gray-600 font-eng tracking-[0.2em]">
-                        SMART INFO BOARD V4.2 (Robust News)
+                        SMART INFO BOARD V4.5 (Reliable Audio)
                     </div>
                 </div>
             </div>
@@ -190,6 +201,107 @@
     <script>
         // Icons
         lucide.createIcons();
+
+        // ---------------------------------------------------------
+        // 0. Audio System (EEW Alert - Robust)
+        // ---------------------------------------------------------
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            
+            // 【重要】モバイル/省電力ブラウザ対策:
+            // ユーザー操作時に空のバッファを一瞬再生し、オーディオエンジンを「アクティブ」にロックする
+            const buffer = audioCtx.createBuffer(1, 1, 22050);
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioCtx.destination);
+            source.start(0);
+
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // スタートオーバーレイの処理
+        const startOverlay = document.getElementById('start-overlay');
+        startOverlay.addEventListener('click', () => {
+            initAudio();
+            playTestBeep(); // 起動確認音
+            
+            // フェードアウト
+            startOverlay.style.opacity = '0';
+            startOverlay.style.pointerEvents = 'none';
+            setTimeout(() => {
+                startOverlay.style.display = 'none';
+            }, 700);
+        });
+
+        // 起動確認用の短いビープ音
+        function playTestBeep() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // 緊急地震速報用のアラート音を再生する
+        async function playEEWAlert() {
+            // AudioContextが未作成なら作成
+            if (!audioCtx) initAudio();
+            if (!audioCtx) return;
+
+            // 【重要】再生前に必ずResumeを試み、完了を待つ
+            // これにより、放置中にブラウザがオーディオをサスペンドしていても復帰させる
+            try {
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+            } catch (e) {
+                console.error("Audio resume failed", e);
+            }
+
+            const t = audioCtx.currentTime;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            // 鋸歯状波（少し鋭い音）
+            oscillator.type = 'sawtooth';
+            
+            // 音量設定
+            gainNode.gain.setValueAtTime(0, t);
+            gainNode.gain.linearRampToValueAtTime(0.3, t + 0.1);
+            gainNode.gain.setValueAtTime(0.3, t + 2.9);
+            gainNode.gain.linearRampToValueAtTime(0, t + 3.0);
+
+            // サイレンのような周波数変化
+            for(let i = 0; i < 3; i++) {
+                const startTime = t + i;
+                // 低い音から高い音へ
+                oscillator.frequency.setValueAtTime(600, startTime);
+                oscillator.frequency.linearRampToValueAtTime(900, startTime + 0.5);
+                // 高い音から低い音へ
+                oscillator.frequency.linearRampToValueAtTime(600, startTime + 1.0);
+            }
+
+            oscillator.start(t);
+            oscillator.stop(t + 3.0);
+        }
 
         // ---------------------------------------------------------
         // 1. Clock
@@ -251,7 +363,7 @@
                     <div class="flex items-center gap-5 fade-in">
                         <i data-lucide="${info.icon}" class="w-16 h-16 md:w-24 md:h-24 ${info.color} stroke-1"></i>
                         <div class="flex flex-col">
-                            <div class="text-5xl md:text-6xl font-eng font-bold text-white">${Math.round(current.temperature_2m)}°</div>
+                            <div class="text-5xl md:text-6xl font-eng font-bold text-white">${Math.round(current.temperature_2m)}°C</div>
                             <div class="text-lg md:text-xl text-gray-400 font-eng tracking-wide mt-1">${info.text}</div>
                         </div>
                     </div>
@@ -293,7 +405,6 @@
             }
         }
         initWeather();
-        // 天気情報を30分ごとに更新
         setInterval(() => fetchWeather(lastLat, lastLon, lastPlaceName), 1800000);
 
 
@@ -313,7 +424,7 @@
 
         // --- データ取得ロジック ---
 
-        // 3-1. 鉄道情報 (Bluesky)
+        // 3-1. 鉄道情報
         async function fetchTrainInfo() {
             const BLUESKY_RSS_URL = 'https://bsky.app/profile/did:plc:xgoesh4b2eyay7mzzqykm2vd/rss';
             const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(BLUESKY_RSS_URL)}`;
@@ -323,7 +434,6 @@
                 const data = await res.json();
                 
                 if (data.status === 'ok' && data.items.length > 0) {
-                    // 最新20件を取得
                     statusState.trainItems = data.items.slice(0, 20).map(item => ({
                         type: 'train',
                         content: item.description.replace(/<[^>]+>/g, '').trim(),
@@ -408,10 +518,24 @@
                         renderStatusSlide();
                     } else {
                         statusState.isEmergency = true;
+                        
+                        // アラート音再生 (ここが重要)
+                        playEEWAlert();
+
+                        let areaText = "詳細不明";
+                        if (data.areas && data.areas.length > 0) {
+                            const names = data.areas.map(a => a.name).filter(n => n);
+                            if (names.length > 3) {
+                                areaText = names.slice(0, 3).join(' ') + ' 他';
+                            } else {
+                                areaText = names.join(' ');
+                            }
+                        }
+
                         statusState.eewItem = {
                             type: 'eew',
-                            content: `緊急地震速報を受信しました`,
-                            subContent: `強い揺れに警戒してください`,
+                            content: `緊急地震速報 (対象地域)`,
+                            subContent: areaText,
                             time: 'JUST NOW',
                             title: 'EMERGENCY ALERT',
                             icon: 'alert-triangle',
@@ -527,7 +651,6 @@
         // 4. News (Slide & QR Code) - Robust Version
         // ---------------------------------------------------------
         
-        // 優先度順のRSSリスト (NHK -> Yahoo)
         const RSS_URLS = [
             'https://www.nhk.or.jp/rss/news/cat0.xml',
             'https://news.yahoo.co.jp/rss/topics/top-picks.xml'
@@ -538,7 +661,6 @@
         const SLIDE_DURATION = 8000;
 
         async function fetchNews(retryIndex = 0) {
-            // 全てのソースを試してダメだった場合
             if (retryIndex >= RSS_URLS.length) {
                 document.getElementById('news-display').innerHTML = '<div class="text-gray-500">ニュースを取得できませんでした<br><span class="text-xs">(Retrying later...)</span></div>';
                 return;
@@ -552,34 +674,28 @@
                 const data = await res.json();
                 
                 if (data.status === 'ok' && data.items.length > 0) {
-                    // データ整形
                     newsItems = data.items.map(item => ({
                         ...item,
                         cleanDescription: (item.description || '').replace(/<[^>]+>/g, '').trim().substring(0, 150) + '...',
                         source: retryIndex === 0 ? 'NHK News' : 'Yahoo! News'
                     }));
 
-                    // ラベル更新
                     const label = document.getElementById('news-label');
                     if(label) label.textContent = newsItems[0].source;
 
-                    // スライドショー開始判定
                     if (!window.newsInterval) {
                         startNewsSlide();
                     }
                 } else {
-                    // statusがokでない場合は次へ
                     throw new Error("API Error");
                 }
             } catch (e) {
                 console.warn(`Fetch failed for ${rssUrl}`, e);
-                // 次のURLでリトライ
                 fetchNews(retryIndex + 1);
             }
         }
 
         function convertUtcToJstTime(pubDate) {
-            // "YYYY-MM-DD HH:mm:ss" -> ISO -> Date
             const utcDateStr = pubDate.replace(" ", "T") + "Z";
             return new Date(utcDateStr).toLocaleTimeString('ja-JP', { 
                 hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' 
@@ -646,12 +762,9 @@
             }, 50);
         }
 
-        // 初回実行
         fetchNews();
-        // ニュースを15分ごとに更新
         setInterval(() => fetchNews(0), 900000);
 
     </script>
 </body>
 </html>
-

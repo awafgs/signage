@@ -425,7 +425,7 @@
 
                 <div class="mt-8 flex items-center gap-4">
                     <div class="text-[10px] md:text-xs text-gray-600 font-eng tracking-[0.2em]">
-                        SMART INFO BOARD V25.0 (Blue Train Status)
+                        SMART INFO BOARD V29.0 (JST Fix)
                     </div>
                 </div>
             </div>
@@ -596,12 +596,12 @@
         let alarmHour = 7;
         let alarmMin = 0;
         let isAlarmSet = false;
-        let currentCityId = 280010; // Default Kobe
+        let currentCityId = 280010; 
         
         const CITY_LIST = [
             { id: '016010', name: '札幌' }, { id: '040010', name: '仙台' }, { id: '130010', name: '東京' },
             { id: '140010', name: '横浜' }, { id: '230010', name: '名古屋' }, { id: '260010', name: '京都' },
-            { id: '270000', name: '大阪' }, { id: '280010', name: '神戸' }, { id: '340010', name: '広島' },
+            { id: '270000', name: '大阪' }, { id: '280010', name: '神戸' }, { id: '330010', name: '岡山' }, { id: '340010', name: '広島' },
             { id: '400010', name: '福岡' }, { id: '471010', name: '那覇' }
         ];
 
@@ -613,7 +613,6 @@
         let currentNewsIndex = 0;
         let slideTimer = null;
 
-        // --- DOMContentLoaded ---
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
             createParticles();
@@ -621,17 +620,14 @@
             initFullscreen();
             initCityModal();
             
-            document.body.addEventListener('click', () => {
-                initAudio();
-            }, { once: true });
+            document.body.addEventListener('click', () => { initAudio(); }, { once: true });
 
             initAudio();
             syncTimeWithJST();
             setInterval(syncTimeWithJST, 3600000); 
-            setInterval(updateClock, 100);
+            setInterval(updateClock, 1000); 
             updateClock();
             
-            // Load saved city
             const savedCity = localStorage.getItem('weather_city_id');
             if(savedCity) currentCityId = savedCity;
 
@@ -665,38 +661,6 @@
 
         function initCityModal() {
             const list = document.getElementById('city-list');
-            CITY_LIST.forEach(city => {
-                const btn = document.createElement('div');
-                btn.className = `city-btn ${city.id == currentCityId ? 'active' : ''}`;
-                btn.textContent = city.name;
-                btn.onclick = () => changeCity(city.id);
-                list.appendChild(btn);
-            });
-        }
-
-        function openCityModal() {
-            document.getElementById('city-modal').classList.add('open');
-        }
-
-        function closeCityModal() {
-            document.getElementById('city-modal').classList.remove('open');
-        }
-
-        function changeCity(id) {
-            currentCityId = id;
-            localStorage.setItem('weather_city_id', id);
-            
-            // Force re-fetch weather with new ID and cache buster
-            const container = document.getElementById('weather-container');
-            if(container) container.innerHTML = '<div class="text-gray-500 animate-pulse">Loading...</div>'; // Feedback
-            fetchWeather(id);
-            
-            closeCityModal();
-            
-            // Update active state in list
-            document.querySelectorAll('.city-btn').forEach(btn => btn.classList.remove('active'));
-            // Re-render list (simple way to update active class)
-            const list = document.getElementById('city-list');
             list.innerHTML = '';
             CITY_LIST.forEach(city => {
                 const btn = document.createElement('div');
@@ -706,85 +670,24 @@
                 list.appendChild(btn);
             });
         }
-
-        function initAudio() { 
-            if(!audioCtx) { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } 
-            if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{}); 
-            if(window.speechSynthesis) window.speechSynthesis.cancel(); 
+        function openCityModal() { document.getElementById('city-modal').classList.add('open'); }
+        function closeCityModal() { document.getElementById('city-modal').classList.remove('open'); }
+        function changeCity(id) {
+            currentCityId = id; localStorage.setItem('weather_city_id', id);
+            const container = document.getElementById('weather-container');
+            if(container) container.innerHTML = '<div class="text-gray-500 animate-pulse">Loading...</div>';
+            fetchWeather(id);
+            closeCityModal();
+            initCityModal(); 
         }
 
-        async function syncTimeWithJST() { 
-            try{ 
-                const res=await fetch('https://worldtimeapi.org/api/timezone/Asia/Tokyo'); 
-                if(res.ok){ 
-                    const d=await res.json(); 
-                    timeOffset=(new Date(d.datetime).getTime()+(performance.now()-performance.now())/2)-Date.now(); 
-                }
-            }catch(e){} 
-        }
-
-        function speakText(t){ 
-            if(!window.speechSynthesis)return; 
-            window.speechSynthesis.cancel(); 
-            const u=new SpeechSynthesisUtterance(t); 
-            u.lang='ja-JP'; 
-            u.rate=1.1; 
-            window.speechSynthesis.speak(u); 
-        }
-
-        function playTestBeep(){ 
-            if(!audioCtx)return; 
-            const o=audioCtx.createOscillator(); 
-            const g=audioCtx.createGain(); 
-            o.connect(g); 
-            g.connect(audioCtx.destination); 
-            o.frequency.setValueAtTime(880,audioCtx.currentTime); 
-            g.gain.setValueAtTime(0.01,audioCtx.currentTime); 
-            g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.05); 
-            o.start(); 
-            o.stop(audioCtx.currentTime+0.05); 
-        }
-
-        async function playEEWAlert(){ 
-            if(!audioCtx)initAudio(); 
-            if(!audioCtx||audioCtx.state==='suspended')return; 
-            const t=audioCtx.currentTime; 
-            const o=audioCtx.createOscillator(); 
-            const g=audioCtx.createGain(); 
-            o.connect(g); 
-            g.connect(audioCtx.destination); 
-            o.type='sawtooth'; 
-            g.gain.setValueAtTime(0,t); 
-            g.gain.linearRampToValueAtTime(0.3,t+0.1); 
-            g.gain.setValueAtTime(0.3,t+2.9); 
-            g.gain.linearRampToValueAtTime(0,t+3.0); 
-            for(let i=0;i<3;i++){ 
-                o.frequency.setValueAtTime(600,t+i); 
-                o.frequency.linearRampToValueAtTime(900,t+i+0.5); 
-                o.frequency.linearRampToValueAtTime(600,t+i+1.0); 
-            } 
-            o.start(t); 
-            o.stop(t+3.0); 
-        }
-
-        function updateClock(){ 
-            const n=new Date(Date.now()+timeOffset); 
-            const d=['日','月','火','水','木','金','土']; 
-            document.getElementById('date-display').textContent=`${d[n.getDay()]}曜日, ${['1','2','3','4','5','6','7','8','9','10','11','12'][n.getMonth()]}月 ${n.getDate()}日`; 
-            document.getElementById('clock-display').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; 
-            document.getElementById('seconds-display').textContent=String(n.getSeconds()).padStart(2,'0'); 
-        }
-
-        function initFullscreen(){ 
-            const b=document.getElementById('fullscreen-btn'); 
-            b.addEventListener('click',()=>{ 
-                if(!document.fullscreenElement){ 
-                    document.documentElement.requestFullscreen().catch(e=>{}); 
-                }else{ 
-                    if(document.exitFullscreen) document.exitFullscreen(); 
-                } 
-            }); 
-        }
+        function initAudio() { if(!audioCtx) { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{}); if(window.speechSynthesis) window.speechSynthesis.cancel(); }
+        async function syncTimeWithJST() { try{ const res=await fetch('https://worldtimeapi.org/api/timezone/Asia/Tokyo'); if(res.ok){ const d=await res.json(); timeOffset=(new Date(d.datetime).getTime()+(performance.now()-performance.now())/2)-Date.now(); }}catch(e){} }
+        function speakText(t){ if(!window.speechSynthesis)return; window.speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang='ja-JP'; u.rate=1.1; window.speechSynthesis.speak(u); }
+        function playTestBeep(){ if(!audioCtx)return; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.frequency.setValueAtTime(880,audioCtx.currentTime); g.gain.setValueAtTime(0.01,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.05); o.start(); o.stop(audioCtx.currentTime+0.05); }
+        async function playEEWAlert(){ if(!audioCtx)initAudio(); if(!audioCtx||audioCtx.state==='suspended')return; const t=audioCtx.currentTime; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='sawtooth'; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.3,t+0.1); g.gain.setValueAtTime(0.3,t+2.9); g.gain.linearRampToValueAtTime(0,t+3.0); for(let i=0;i<3;i++){ o.frequency.setValueAtTime(600,t+i); o.frequency.linearRampToValueAtTime(900,t+i+0.5); o.frequency.linearRampToValueAtTime(600,t+i+1.0); } o.start(t); o.stop(t+3.0); }
+        function updateClock(){ const n=new Date(Date.now()+timeOffset); const d=['日','月','火','水','木','金','土']; document.getElementById('date-display').textContent=`${d[n.getDay()]}曜日, ${['1','2','3','4','5','6','7','8','9','10','11','12'][n.getMonth()]}月 ${n.getDate()}日`; document.getElementById('clock-display').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; document.getElementById('seconds-display').textContent=String(n.getSeconds()).padStart(2,'0'); }
+        function initFullscreen(){ const b=document.getElementById('fullscreen-btn'); b.addEventListener('click',()=>{ if(!document.fullscreenElement){ document.documentElement.requestFullscreen().catch(e=>{}); }else{ if(document.exitFullscreen) document.exitFullscreen(); } }); }
 
         // Weather
         function getWeatherIcon(telop) {
@@ -795,35 +698,92 @@
         }
 
         async function fetchWeather(id){
-            const c=document.getElementById('weather-container'); 
-            const ln=document.getElementById('location-name');
+            const c=document.getElementById('weather-container'); const ln=document.getElementById('location-name');
             try {
                 // Add timestamp to prevent caching
                 const r=await fetch(`https://weather.tsukumijima.net/api/forecast/city/${id}?t=${Date.now()}`); 
                 const d=await r.json();
                 if(ln) ln.textContent=d.location.city;
-                const t=d.forecasts[0]; 
-                const tMax=t.temperature.max.celsius;
-                let main=t; let idx=1; 
-                if(tMax===null){ main=d.forecasts[1]; idx=2; }
-                const mIcon=getWeatherIcon(main.telop);
-                const maxHtml=main.temperature.max.celsius!==null?`<div class="text-5xl md:text-6xl font-eng font-bold text-red-500">${main.temperature.max.celsius}°C</div>`:`<div class="text-5xl md:text-6xl font-eng font-bold text-gray-500">--°C</div>`;
-                let wHtml='<div class="grid grid-cols-2 gap-2 mt-6 border-t border-white/10 pt-4 w-full">';
-                for(let i=idx;i<3&&i<d.forecasts.length;i++){
-                    const f=d.forecasts[i]; const fi=getWeatherIcon(f.telop);
-                    const mx=f.temperature.max.celsius; const mn=f.temperature.min.celsius;
-                    let th=''; if(mx) th+=`<span class="text-red-500 font-bold">${mx}°</span>`; if(mx&&mn) th+=`<span class="text-gray-600 mx-1">/</span>`; if(mn) th+=`<span class="text-blue-500 font-bold">${mn}°</span>`;
-                    wHtml+=`<div class="flex flex-col items-center"><span class="text-gray-500 text-[10px] md:text-xs mb-1">${f.dateLabel}</span><i data-lucide="${fi.icon}" class="w-6 h-6 md:w-8 md:h-8 mb-1 ${fi.color}"></i><div class="text-xs md:text-sm font-eng flex">${th}</div></div>`;
+                
+                // --- Logic to switch between Today and Tomorrow if today's high temp is null ---
+                let mainForecast = d.forecasts[0];
+                let isTomorrow = false;
+                
+                // If today's max temp is null and we have tomorrow's data, switch to tomorrow
+                if (mainForecast.temperature.max.celsius === null && d.forecasts.length > 1) {
+                    mainForecast = d.forecasts[1];
+                    isTomorrow = true;
+                }
+
+                const tMax = mainForecast.temperature.max.celsius || '--';
+                const tMin = mainForecast.temperature.min.celsius || '--';
+                const mIcon = getWeatherIcon(mainForecast.telop);
+                
+                // Add date label (e.g., "12/10 Today" or "12/11 Tomorrow")
+                let mainDateLabel = mainForecast.dateLabel; // "今日" or "明日"
+                if(isTomorrow) mainDateLabel = "明日";
+                else mainDateLabel = "今日";
+                
+                // Append date string if available
+                if(mainForecast.date) {
+                    const parts = mainForecast.date.split('-');
+                    if(parts.length === 3) mainDateLabel += ` ${parts[1]}/${parts[2]}`;
+                }
+                
+                // Generate Bottom List (Show all available days: Today, Tomorrow, DayAfter)
+                let wHtml='<div class="grid grid-cols-3 gap-1 mt-6 border-t border-gray-800 pt-4 w-full">';
+                
+                for(let i=0; i<d.forecasts.length; i++){
+                    const f=d.forecasts[i]; 
+                    const fi=getWeatherIcon(f.telop);
+                    const mx=f.temperature.max.celsius || '-'; 
+                    const mn=f.temperature.min.celsius || '-';
+                    // Parse date (YYYY-MM-DD) to MM/DD
+                    let dateStr = f.dateLabel; 
+                    if(f.date) {
+                        const dateParts = f.date.split('-');
+                        if(dateParts.length === 3) {
+                            dateStr += ` <span class="text-[9px] opacity-70">${dateParts[1]}/${dateParts[2]}</span>`;
+                        }
+                    }
+
+                    let th=''; 
+                    th+=`<span class="text-red-500 font-bold">${mx}°</span>`; 
+                    th+=`<span class="text-gray-600 mx-0.5">/</span>`; 
+                    th+=`<span class="text-blue-500 font-bold">${mn}°</span>`;
+                    
+                    // Highlight the main displayed day in the list
+                    const activeClass = (f.date === mainForecast.date) ? "bg-white/10 rounded-lg p-1" : "p-1";
+
+                    wHtml+=`<div class="flex flex-col items-center ${activeClass}"><div class="text-gray-400 text-[10px] mb-1 text-center leading-tight">${dateStr}</div><i data-lucide="${fi.icon}" class="w-6 h-6 md:w-8 md:h-8 mb-1 ${fi.color}"></i><div class="text-xs md:text-sm font-eng flex">${th}</div></div>`;
                 }
                 wHtml+='</div>';
-                c.innerHTML=`<div class="flex items-center gap-5 anim-slide-up"><div class="flex flex-col items-center gap-1"><i data-lucide="${mIcon.icon}" class="w-16 h-16 md:w-20 md:h-20 ${mIcon.color} stroke-1"></i></div><div class="flex flex-col">${maxHtml}<div class="text-lg md:text-xl text-gray-400 font-eng tracking-wide mt-1">${main.telop}</div></div></div>${wHtml}`;
+                
+                // Main Display
+                c.innerHTML=`
+                    <div class="flex flex-col w-full anim-slide-up">
+                        <div class="text-xs text-gray-500 font-bold mb-2 tracking-widest uppercase border-b border-gray-800 pb-1">${mainDateLabel}</div>
+                        <div class="flex items-center gap-4">
+                            <div class="flex flex-col items-center gap-1">
+                                <i data-lucide="${mIcon.icon}" class="w-16 h-16 md:w-20 md:h-20 ${mIcon.color} stroke-1"></i>
+                            </div>
+                            <div class="flex flex-col">
+                                <div class="flex items-baseline gap-2">
+                                    <div class="text-5xl md:text-6xl font-eng font-bold text-red-500">${tMax}°C</div>
+                                    <div class="text-2xl md:text-3xl font-eng font-bold text-blue-500 opacity-80">${tMin}°C</div>
+                                </div>
+                                <div class="text-lg md:text-xl text-gray-400 font-eng tracking-wide mt-1 line-clamp-1">${mainForecast.telop}</div>
+                            </div>
+                        </div>
+                        ${wHtml}
+                    </div>
+                `;
                 lucide.createIcons();
             } catch(e){ if(c) c.innerHTML='<div class="text-red-500 text-sm">Update Failed</div>'; }
         }
 
         // Status & News logic (Kept same)
         function getTrainStatusColor(text) { 
-            // Priority Check
             if (text.includes("平常") || text.includes("再開")) return "text-sky-500"; 
             if (text.includes("見合") || text.includes("運休") || text.includes("停止")) return "text-red-500"; 
             if (text.includes("遅れ") || text.includes("遅延") || text.includes("乱れ")) return "text-orange-400"; 
@@ -836,27 +796,51 @@
         async function fetchWithFallback(u,t='json'){ const s=[async()=>{if(t!=='json')throw 0;const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&t=${Date.now()}`);if(!r.ok)throw 0;const d=await r.json();if(d.status!=='ok')throw 0;return d.items.map(i=>({title:i.title,link:i.link,pubDate:i.pubDate,description:i.description,enclosure:i.enclosure,thumbnail:i.thumbnail,content:i.content}));},async()=>{const r=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`);if(!r.ok)throw 0;const x=await r.text();return t==='json'?parseXMLRSS(x):x;},async()=>{const r=await fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`);if(!r.ok)throw 0;const x=await r.text();return t==='json'?parseXMLRSS(x):x;}]; for(const f of s){try{const r=await f();if(r)return r;}catch(e){}} return null; }
         function parseXMLRSS(t){ const p=new DOMParser();const x=p.parseFromString(t,"text/xml");return Array.from(x.querySelectorAll("item")).map(i=>({title:i.querySelector("title")?.textContent,link:i.querySelector("link")?.textContent,pubDate:i.querySelector("pubDate")?.textContent,description:i.querySelector("description")?.textContent||"",content:i.querySelector("encoded")?.textContent||"",enclosure:i.querySelector("enclosure")?{link:i.querySelector("enclosure").getAttribute("url")}:{},thumbnail:""})); }
         async function fetchOGPImage(u){ const h=await fetchWithFallback(u,'html'); if(!h)return null; try{const p=new DOMParser();const d=p.parseFromString(h,'text/html');return d.querySelector('meta[property="og:image"]')?.content;}catch(e){return null;} }
-        async function fetchNews(){ let all=[]; for(const s of RSS_SOURCES){ const i=await fetchWithFallback(s.url,'json'); if(i){ all=all.concat(i.map(x=>({...x,source:s.name,sourceColor:s.color,gradientClass:s.gradientClass}))); } } if(all.length>0){ newsItems=all.map(i=>{ let im=null; if(i.enclosure?.link)im=i.enclosure.link;else if(i.thumbnail)im=i.thumbnail;else if(i.content?.match(/<img[^>]+src="([^">]+)"/))im=i.content.match(/<img[^>]+src="([^">]+)"/)[1];else if(i.description?.match(/<img[^>]+src="([^">]+)"/))im=i.description.match(/<img[^>]+src="([^">]+)"/)[1]; let cd=i.description.replace(/<[^>]+>/g,'').trim();if(cd.length>150)cd=cd.substring(0,150)+'...'; let tm=0;try{tm=new Date(i.pubDate).getTime();if(isNaN(tm))tm=0;}catch(e){} return {title:i.title,cleanDescription:cd,link:i.link,source:i.source,sourceColor:i.sourceColor,gradientClass:i.gradientClass,imageUrl:im,timestamp:tm,rawDate:i.pubDate,ogpFetched:false}; }).sort((a,b)=>b.timestamp-a.timestamp); processBackgroundImages(); if(!window.newsInterval) startNewsSlide(); } }
+        async function fetchNews(){ let all=[]; for(const s of RSS_SOURCES){ const i=await fetchWithFallback(s.url,'json'); if(i){ all=all.concat(i.map(x=>({...x,source:s.name,sourceColor:s.color,gradientClass:s.gradientClass}))); } } if(all.length>0){ newsItems=all.map(i=>{ 
+            // Fix Date format if from rss2json
+            let fixedDate = i.pubDate;
+            if (typeof fixedDate === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(fixedDate)) {
+                fixedDate = fixedDate.replace(' ', 'T') + 'Z';
+            }
+            
+            let im=null; if(i.enclosure?.link)im=i.enclosure.link;else if(i.thumbnail)im=i.thumbnail;else if(i.content?.match(/<img[^>]+src="([^">]+)"/))im=i.content.match(/<img[^>]+src="([^">]+)"/)[1];else if(i.description?.match(/<img[^>]+src="([^">]+)"/))im=i.description.match(/<img[^>]+src="([^">]+)"/)[1]; let cd=i.description.replace(/<[^>]+>/g,'').trim();if(cd.length>150)cd=cd.substring(0,150)+'...'; let tm=0;try{tm=new Date(fixedDate).getTime();if(isNaN(tm))tm=0;}catch(e){} 
+            return {title:i.title,cleanDescription:cd,link:i.link,source:i.source,sourceColor:i.sourceColor,gradientClass:i.gradientClass,imageUrl:im,timestamp:tm,rawDate:fixedDate,ogpFetched:false}; 
+        }).sort((a,b)=>b.timestamp-a.timestamp); processBackgroundImages(); if(!window.newsInterval) startNewsSlide(); } }
+        
         async function processBackgroundImages(){ for(const i of newsItems){ if(i.imageUrl){ new Image().src=i.imageUrl; }else if(!i.ogpFetched){ i.ogpFetched=true; fetchOGPImage(i.link).then(u=>{ if(u){ i.imageUrl=u; new Image().src=u; } }); await new Promise(r=>setTimeout(r,1000)); } } }
         function startNewsSlide(){ if(newsItems.length===0)return; updateNewsUI(currentNewsIndex); if(slideTimer)clearInterval(slideTimer); slideTimer=setInterval(()=>{currentNewsIndex=(currentNewsIndex+1)%newsItems.length;updateNewsUI(currentNewsIndex);},8000); }
-        async function updateNewsUI(idx){ const i=newsItems[idx]; const c=document.getElementById('transition-curtain'); if(c){ c.className=`transition-curtain ${i.sourceColor}`; c.classList.remove('animate-curtain'); void c.offsetWidth; c.classList.add('animate-curtain'); } const pb=document.getElementById('news-progress'); if(pb){ pb.style.transition='none'; pb.style.width='0%'; } await new Promise(r=>setTimeout(r,500)); const nl=document.getElementById('news-label'); if(nl){ nl.textContent=i.source; nl.className=`text-white text-xs md:text-sm font-bold px-3 py-1 md:px-4 md:py-1.5 rounded-full uppercase tracking-wider transition-colors duration-500 ${i.sourceColor} shadow-lg`; } const bi=document.getElementById('news-bg-image'); const bg=document.getElementById('news-bg-gradient'); if(bi){ bi.classList.remove('zoom-active'); if(i.imageUrl){ bi.src=i.imageUrl; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; }else{ bi.style.opacity='0'; if(bg){ bg.className=`absolute inset-0 z-0 ${i.gradientClass}`; bg.style.opacity='0.8'; } if(!i.ogpFetched){ i.ogpFetched=true; fetchOGPImage(i.link).then(u=>{ if(u){ i.imageUrl=u; if(newsItems[currentNewsIndex]===i){ bi.src=u; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; } } }); } } void bi.offsetWidth; bi.classList.add('zoom-active'); } let dStr="--:--"; try{dStr=new Date(i.rawDate).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'});}catch(e){} const d=document.getElementById('news-display'); if(d){ d.innerHTML=`<div class="flex flex-col items-center w-full"><div class="anim-slide-up mb-4 text-orange-400 font-eng text-sm tracking-widest bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm" style="animation-delay: 0.1s;">${dStr} 更新</div><h2 class="anim-slide-up text-3xl md:text-4xl font-bold text-white leading-tight mb-6 min-h-[120px] flex items-center justify-center line-clamp-3 drop-shadow-lg" style="text-shadow: 0 4px 10px rgba(0,0,0,0.8); animation-delay: 0.2s;">${i.title}</h2><p class="anim-slide-up text-base md:text-lg text-gray-200 mb-8 line-clamp-3 max-w-3xl drop-shadow-md" style="text-shadow: 0 2px 5px rgba(0,0,0,0.8); animation-delay: 0.3s;">${i.cleanDescription}</p><div class="anim-slide-up flex items-center gap-8 scale-110" style="animation-delay: 0.4s;"><a href="${i.link}" target="_blank" rel="noopener noreferrer" class="bg-white p-3 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform duration-300"><div id="qrcode"></div></a><div class="flex flex-col text-left"><div class="text-gray-300 text-sm mt-2 font-eng tracking-widest uppercase drop-shadow">記事を読む</div><div class="text-white text-xl font-bold drop-shadow">QRコードをスキャンまたはクリック</div></div></div></div>`; const q=document.getElementById("qrcode"); if(q){ q.innerHTML=""; new QRCode(q,{text:i.link,width:120,height:120,correctLevel:QRCode.CorrectLevel.L}); } } if(pb){ requestAnimationFrame(()=>{ setTimeout(()=>{ pb.style.transition='width 7500ms linear'; pb.style.width='100%'; },600); }); } }
-
-        // Timer/Alarm Logic & Swipe
-        function switchTab(t){ 
-            const tu=document.getElementById('timer-ui'); const au=document.getElementById('alarm-ui'); 
-            const tc=document.getElementById('tab-control');
-            const btns = document.querySelectorAll('.tab-btn');
+        async function updateNewsUI(idx){ const i=newsItems[idx]; const c=document.getElementById('transition-curtain'); 
+            // 1. Hide Content Immediately
+            const contentWrapper = document.getElementById('news-content-wrapper');
+            if(contentWrapper) {
+                contentWrapper.style.opacity = '0';
+            }
             
-            if(t==='timer'){ 
-                tu.classList.remove('hidden'); au.classList.add('hidden'); 
-                tc.classList.remove('show-alarm'); tc.classList.add('show-timer');
-                btns[0].classList.add('active'); btns[1].classList.remove('active');
-            }else{ 
-                tu.classList.add('hidden'); au.classList.remove('hidden'); 
-                tc.classList.remove('show-timer'); tc.classList.add('show-alarm');
-                btns[0].classList.remove('active'); btns[1].classList.add('active');
-            } 
-        }
+            if(c){ c.className=`transition-curtain ${i.sourceColor}`; c.classList.remove('animate-curtain'); void c.offsetWidth; c.classList.add('animate-curtain'); } 
+            
+            const pb=document.getElementById('news-progress'); if(pb){ pb.style.transition='none'; pb.style.width='0%'; } 
+            
+            await new Promise(r=>setTimeout(r,500)); 
+            
+            const nl=document.getElementById('news-label'); if(nl){ nl.textContent=i.source; nl.className=`text-white text-xs md:text-sm font-bold px-3 py-1 md:px-4 md:py-1.5 rounded-full uppercase tracking-wider transition-colors duration-500 ${i.sourceColor} shadow-lg`; } 
+            const bi=document.getElementById('news-bg-image'); const bg=document.getElementById('news-bg-gradient'); 
+            if(bi){ bi.classList.remove('zoom-active'); if(i.imageUrl){ bi.src=i.imageUrl; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; }else{ bi.style.opacity='0'; if(bg){ bg.className=`absolute inset-0 z-0 ${i.gradientClass}`; bg.style.opacity='0.8'; } if(!i.ogpFetched){ i.ogpFetched=true; fetchOGPImage(i.link).then(u=>{ if(u){ i.imageUrl=u; if(newsItems[currentNewsIndex]===i){ bi.src=u; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; } } }); } } void bi.offsetWidth; bi.classList.add('zoom-active'); } 
+            
+            let dStr="--:--"; try{dStr=new Date(i.rawDate).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'});}catch(e){} 
+            const d=document.getElementById('news-display'); 
+            if(d){ d.innerHTML=`<div class="flex flex-col items-center w-full"><div class="anim-slide-up mb-4 text-orange-400 font-eng text-sm tracking-widest bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm" style="animation-delay: 0.1s;">${dStr} 更新</div><h2 class="anim-slide-up text-3xl md:text-4xl font-bold text-white leading-tight mb-6 min-h-[120px] flex items-center justify-center line-clamp-3 drop-shadow-lg" style="text-shadow: 0 4px 10px rgba(0,0,0,0.8); animation-delay: 0.2s;">${i.title}</h2><p class="anim-slide-up text-base md:text-lg text-gray-200 mb-8 line-clamp-3 max-w-3xl drop-shadow-md" style="text-shadow: 0 2px 5px rgba(0,0,0,0.8); animation-delay: 0.3s;">${i.cleanDescription}</p><div class="anim-slide-up flex items-center gap-8 scale-110" style="animation-delay: 0.4s;"><a href="${i.link}" target="_blank" rel="noopener noreferrer" class="bg-white p-3 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform duration-300"><div id="qrcode"></div></a><div class="flex flex-col text-left"><div class="text-gray-300 text-sm mt-2 font-eng tracking-widest uppercase drop-shadow">記事を読む</div><div class="text-white text-xl font-bold drop-shadow">QRコードをスキャンまたはクリック</div></div></div></div>`; const q=document.getElementById("qrcode"); if(q){ q.innerHTML=""; new QRCode(q,{text:i.link,width:120,height:120,correctLevel:QRCode.CorrectLevel.L}); } } 
+            
+            // 2. Show Content
+            if(contentWrapper) {
+                // Small delay to let content update before showing
+                requestAnimationFrame(() => {
+                    contentWrapper.style.opacity = '1';
+                });
+            }
+
+            if(pb){ requestAnimationFrame(()=>{ setTimeout(()=>{ pb.style.transition='width 7500ms linear'; pb.style.width='100%'; },600); }); } }
+
+        function switchTab(t){ const tu=document.getElementById('timer-ui'); const au=document.getElementById('alarm-ui'); const tc=document.getElementById('tab-control'); const bs=document.querySelectorAll('.tab-btn'); if(t==='timer'){ tu.classList.remove('hidden'); au.classList.add('hidden'); tc.classList.remove('show-alarm'); tc.classList.add('show-timer'); bs[0].classList.add('active'); bs[1].classList.remove('active'); }else{ tu.classList.add('hidden'); au.classList.remove('hidden'); tc.classList.remove('show-timer'); tc.classList.add('show-alarm'); bs[0].classList.remove('active'); bs[1].classList.add('active'); } }
         function updateTimerDisplay(){ const m=Math.floor(timerSeconds/60); const s=timerSeconds%60; document.getElementById('timer-min').textContent=String(m).padStart(2,'0'); document.getElementById('timer-sec').textContent=String(s).padStart(2,'0'); }
         function adjustTime(dm, ds){ if(isTimerRunning)return; let n=timerSeconds+(dm*60)+ds; if(n<0)n=0; if(n>5999)n=5999; timerSeconds=n; updateTimerDisplay(); }
         function addTimePreset(m){ if(isTimerRunning)return; adjustTime(m,0); }

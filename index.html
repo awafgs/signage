@@ -12,75 +12,88 @@
     <!-- QRCode.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
+        :root {
+            --calendar-width: 100vw;
+        }
+        @media (min-width: 768px) {
+            :root {
+                --calendar-width: 500px;
+            }
+        }
+
         body {
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #000;
             color: #e5e7eb;
             margin: 0;
             width: 100vw;
-            /* 基本はスクロール許可（スマホ縦・横用） */
-            overflow-y: auto;
-            height: auto;
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
         }
         
         .font-eng {
             font-family: 'Jost', sans-serif;
         }
         
-        /* Container Layout: 基本は縦積み */
+        /* Container Layout */
         #dashboard-container {
             width: 100%;
-            height: auto;
-            min-height: 100vh;
+            height: 100%;
             background: linear-gradient(145deg, #1a1a1a, #0f0f0f);
             position: relative;
-            display: flex;
-            flex-direction: column;
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease;
+            will-change: transform;
         }
 
-        /* ---------------------------------------------------------
-           レスポンシブ設定 (スマホ横持ち対応)
-           幅が640px以上 (スマホ横持ち・タブレット) なら左右分割にする
-        --------------------------------------------------------- */
+        /* Responsive */
+        @media (max-width: 639px) {
+            body {
+                overflow-y: auto;
+                height: auto;
+                min-height: 100vh;
+                min-height: 100dvh;
+            }
+            #dashboard-container {
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                min-height: 100%;
+            }
+        }
+
         @media (min-width: 640px) {
+            body { overflow: hidden; }
             #dashboard-container {
                 display: grid;
-                /* 左側を少し広めに確保して崩れを防ぐ */
                 grid-template-columns: 40% 60%;
-                grid-template-rows: auto;
+                grid-template-rows: 100%;
+                height: 100%;
             }
         }
         
         @media (min-width: 1024px) {
-            #dashboard-container {
-                grid-template-columns: 35% 65%;
-            }
+            #dashboard-container { grid-template-columns: 35% 65%; }
         }
 
-        /* ---------------------------------------------------------
-           高さ制御 (PCライクな固定表示)
-           幅が広く、かつ「高さも十分(600px以上)ある」場合のみ全画面固定にする
-           これにより、スマホ横持ち（高さ不足）のときはスクロールで表示できる
-        --------------------------------------------------------- */
-        @media (min-width: 768px) and (min-height: 600px) {
-            body {
-                overflow: hidden; /* 全画面固定 */
-                height: 100vh;
-            }
-            #dashboard-container {
-                height: 100%;
-                overflow: hidden;
-                grid-template-rows: 100%;
-            }
+        /* Calendar Open State */
+        body.calendar-open #dashboard-container {
+            transform: translateX(calc(-1 * var(--calendar-width)));
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Timer Open State */
+        body.timer-open #dashboard-container {
+            opacity: 0.5;
+            pointer-events: none;
         }
 
-        /* Glassmorphism Borders */
+        /* Borders */
         .glass-border-right {
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             border-right: none;
         }
-        /* 横幅640px以上なら右ボーダーに切り替え */
         @media (min-width: 640px) {
             .glass-border-right {
                 border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -88,32 +101,25 @@
             }
         }
 
-        /* Progress Bar for News */
+        /* Progress Bar */
         .progress-bar-container {
             width: 100%;
-            height: 4px;
+            height: 6px;
             background-color: rgba(255, 255, 255, 0.1);
             position: absolute;
             bottom: 0;
             left: 0;
             z-index: 20;
+            overflow: hidden;
         }
         .progress-bar {
             height: 100%;
-            background-color: #f97316; /* Orange-500 */
+            background: linear-gradient(90deg, #f97316, #fbbf24);
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
             width: 0%;
-            transition: width 0.1s linear;
         }
 
         /* Animations */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-
         @keyframes pulse-red {
             0%, 100% { background-color: rgba(127, 29, 29, 0.3); border-color: rgba(239, 68, 68, 0.8); }
             50% { background-color: rgba(185, 28, 28, 0.5); border-color: rgba(252, 165, 165, 1); }
@@ -122,65 +128,278 @@
             animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
         
-        /* Clamp utilities */
-        .line-clamp-2 {
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            -webkit-line-clamp: 2;
+        /* Dynamic Gradient Background */
+        #news-bg-gradient {
+            position: absolute;
+            inset: 0;
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            transition: opacity 1s ease-in-out;
+            opacity: 0; 
         }
-        .line-clamp-3 {
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            -webkit-line-clamp: 3;
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .bg-yahoo-gradient { background: linear-gradient(-45deg, #fc0137, #8a001e, #2e000a, #000000); }
+        .bg-nhk-gradient { background: linear-gradient(-45deg, #4945b7, #2a2685, #100e40, #000000); }
+        
+        /* Image Styling */
+        #news-bg-image {
+            object-position: top center; 
+            -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 95%);
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 95%);
+            opacity: 0;
+            transform: scale(1.0);
+            transition: opacity 1s ease-in-out, transform 10s linear;
+            will-change: transform, opacity;
+        }
+        .zoom-active { transform: scale(1.1) !important; }
+
+        /* Transition Curtain */
+        .transition-curtain {
+            position: absolute;
+            inset: 0;
+            z-index: 50;
+            transform: translateX(-100%);
+            pointer-events: none;
+        }
+        @keyframes curtainSwipe {
+            0% { transform: translateX(-100%); }
+            40% { transform: translateX(0%); }
+            60% { transform: translateX(0%); }
+            100% { transform: translateX(100%); }
+        }
+        .animate-curtain {
+            animation: curtainSwipe 1.2s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+        }
+
+        /* Particles */
+        .particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: floatUp linear infinite;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            20% { opacity: 0.5; }
+            80% { opacity: 0.5; }
+            100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
         }
         
-        /* Background Image Transition */
-        #news-bg-image {
-            transition: opacity 1s ease-in-out;
+        /* Content Animations */
+        @keyframes slideUpFade {
+            0% { opacity: 0; transform: translateY(30px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
+        .anim-slide-up {
+            opacity: 0;
+            animation: slideUpFade 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+
+        /* --- Right Column Slide Logic --- */
+        #right-column { position: relative; overflow: hidden; }
+        #news-view, #calendar-view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+            will-change: transform;
+        }
+        #news-view { transform: translateX(0); z-index: 10; }
+        #calendar-view { transform: translateX(100%); z-index: 20; background: #111; }
+        #right-column.show-calendar #news-view { transform: translateX(-100%); }
+        #right-column.show-calendar #calendar-view { transform: translateX(0); }
+        iframe { border: 0; width: 100%; height: 100%; }
+        #calendar-swipe-trigger { position: absolute; top: 0; left: 0; width: 30px; height: 100%; z-index: 50; }
+
+        /* Fullscreen Button */
+        #fullscreen-btn {
+            position: fixed; bottom: 20px; right: 20px; z-index: 100;
+            background: rgba(0, 0, 0, 0.5); color: white; padding: 10px; border-radius: 50%;
+            cursor: pointer; transition: opacity 0.3s, background 0.3s; opacity: 0;
+        }
+        body:hover #fullscreen-btn { opacity: 1; }
+        #fullscreen-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+        /* Alarm Status Indicator */
+        #alarm-status {
+            position: fixed; top: 20px; right: 20px; z-index: 100;
+            background: rgba(249, 115, 22, 0.8); color: white; padding: 8px 12px; border-radius: 20px;
+            font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; gap: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5); transform: translateY(-100px); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        #alarm-status.active { transform: translateY(0); }
+
+        /* --- Timer/Alarm Panel (Slide Up) --- */
+        #timer-panel {
+            position: fixed;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            height: 420px;
+            background: rgba(15, 15, 15, 0.98);
+            backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 70;
+            transform: translateY(100%); /* Initially hidden */
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+        }
+        body.timer-open #timer-panel {
+            transform: translateY(0);
+        }
+
+        /* Timer Controls */
+        .timer-control-btn {
+            @apply w-12 h-12 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white transition active:scale-95;
+        }
+        
+        /* Modern Segmented Tab Styles */
+        .tab-segment-control {
+            position: relative;
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            padding: 4px;
+            width: 280px;
+            margin-bottom: 24px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px 0;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #9ca3af;
+            position: relative;
+            z-index: 10;
+            transition: color 0.3s ease;
+            cursor: pointer;
+            letter-spacing: 0.05em;
+        }
+        .tab-btn.active {
+            color: #000;
+        }
+        .tab-background {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            left: 4px;
+            width: calc(50% - 4px);
+            background: white;
+            border-radius: 9999px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+        /* Tab Switching Logic via CSS Class */
+        .tab-segment-control.show-timer .tab-background { transform: translateX(0); }
+        .tab-segment-control.show-alarm .tab-background { transform: translateX(100%); }
+
+        /* Time Up Modal */
+        #time-up-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #time-up-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .time-up-text {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 20px rgba(255, 100, 0, 0.8);
+            animation: pulse-text 1s infinite;
+            margin-top: 20px;
+        }
+        @keyframes pulse-text {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.02); opacity: 0.8; }
+        }
+
+        /* City Selection Modal */
+        #city-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 800;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #city-modal.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .city-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-width: 90%;
+            width: 400px;
+        }
+        .city-btn {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+        }
+        .city-btn:hover { background: rgba(255,255,255,0.2); }
+        .city-btn.active { background: #f97316; }
     </style>
 </head>
 <body>
 
-    <!-- Start Overlay (Audio Enabler) -->
-    <div id="start-overlay" class="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center cursor-pointer transition-opacity duration-700">
-        <div class="relative">
-            <div class="absolute inset-0 bg-orange-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-            <i data-lucide="power" class="relative w-24 h-24 text-orange-500 mb-6"></i>
-        </div>
-        <div class="text-3xl md:text-5xl font-bold text-white tracking-widest font-eng mb-2">TAP TO START</div>
-        <div class="text-gray-400 mt-2 text-sm md:text-base">音声通知を有効にするため画面をタップしてください</div>
-        <div class="mt-8 px-6 py-2 border border-white/20 rounded-full text-xs text-gray-500">Audio System Ready</div>
-    </div>
-
     <!-- Main Container -->
     <div id="dashboard-container">
         
-        <!-- Left Column: Clock & Weather & Mixed Status -->
-        <!-- sm:p-6 md:p-10 で余白を調整 -->
+        <!-- Left Column (Fixed) -->
         <div class="glass-border-right flex flex-col p-6 sm:p-6 md:p-10 bg-white/5 backdrop-blur-sm relative justify-between z-10 shrink-0">
-            
             <!-- Top Group -->
             <div>
-                <!-- 1. Clock Section -->
+                <!-- Clock -->
                 <div class="flex flex-col mt-1 sm:mt-2 mb-6 sm:mb-8">
-                    <div id="date-display" class="text-lg md:text-2xl text-gray-400 tracking-wider mb-1 font-medium">Loading...</div>
-                    
+                    <div class="flex items-center gap-2 mb-1">
+                        <div id="date-display" class="text-lg md:text-2xl text-gray-400 tracking-wider font-medium">Loading...</div>
+                    </div>
                     <div class="flex items-baseline gap-2 md:gap-3">
                         <div id="clock-display" class="text-6xl sm:text-7xl md:text-8xl font-bold font-eng tracking-tighter text-white leading-none">--:--</div>
                         <div id="seconds-display" class="text-3xl sm:text-4xl md:text-5xl font-eng text-orange-500 font-bold w-[2.5rem] md:w-[4rem]">--</div>
                     </div>
                 </div>
 
-                <!-- 2. Weather Section (Enhanced) -->
+                <!-- Weather -->
                 <div class="flex flex-col items-start mb-6">
-                    <div class="flex items-center gap-2 mb-3 sm:mb-4 text-gray-400 text-sm">
+                    <button onclick="openCityModal()" class="flex items-center gap-2 mb-3 sm:mb-4 text-gray-400 text-sm hover:text-white transition-colors">
                         <i data-lucide="map-pin" class="w-4 h-4"></i>
                         <span id="location-name">位置情報取得中...</span>
-                    </div>
-                    
+                        <i data-lucide="chevron-down" class="w-3 h-3 ml-1 opacity-50"></i>
+                    </button>
                     <div id="weather-container" class="w-full">
                         <div class="animate-pulse flex flex-col gap-2">
                             <div class="h-16 w-16 bg-white/10 rounded-full"></div>
@@ -192,546 +411,244 @@
 
             <!-- Bottom Group -->
             <div>
-                <!-- 3. Status Info Slider (Train & Earthquake Mixed) -->
+                <!-- Status Info -->
                 <div class="w-full pt-6 border-t border-white/10">
-                    <!-- Header changes dynamically -->
                     <div id="status-header" class="flex items-center gap-2 mb-3 text-gray-400 text-sm font-eng tracking-widest uppercase transition-all duration-300">
                         <i data-lucide="info" class="w-5 h-5"></i>
                         <span>Status Info</span>
                     </div>
-                    
-                    <!-- Content area -->
                     <div id="status-content" class="w-full min-h-[120px] relative">
                         <div class="text-sm text-gray-500">Initializing...</div>
                     </div>
-
-                    <!-- Slide Indicator -->
-                    <div id="status-indicators" class="flex gap-2 mt-4 justify-center">
-                        <!-- Dots will be injected here -->
-                    </div>
+                    <div id="status-indicators" class="flex gap-2 mt-4 justify-center"></div>
                 </div>
 
-                <!-- Footer decoration -->
                 <div class="mt-8 flex items-center gap-4">
                     <div class="text-[10px] md:text-xs text-gray-600 font-eng tracking-[0.2em]">
-                        SMART INFO BOARD V4.9.1 (Landscape)
+                        SMART INFO BOARD V25.0 (Blue Train Status)
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: News Slide -->
-        <!-- min-hを設定して、横画面でも画像がつぶれないようにする -->
-        <div class="relative flex flex-col p-8 md:p-16 justify-center items-center bg-gray-900 overflow-hidden min-h-[400px] md:h-full grow">
+        <!-- Right Column (Swipable) -->
+        <div id="right-column" class="relative bg-gray-900 overflow-hidden min-h-[400px] md:h-full grow">
             
-            <!-- Background Image Layer -->
-            <div class="absolute inset-0 z-0">
-                <!-- Dynamic News Image -->
-                <img id="news-bg-image" src="" class="w-full h-full object-cover opacity-0" alt="">
-                <!-- Dark Overlay for readability -->
-                <div class="absolute inset-0 bg-black/70 bg-gradient-to-t from-black via-black/60 to-black/40"></div>
-                <!-- Default Background (Gradient) when no image -->
-                <div id="news-bg-default" class="absolute inset-0 bg-gradient-to-br from-gray-900 to-black -z-10"></div>
-            </div>
+            <!-- View 1: News Slide -->
+            <div id="news-view" class="relative flex flex-col p-8 md:p-16 justify-center items-center h-full w-full">
+                <div id="transition-curtain" class="transition-curtain bg-white"></div>
+                <div id="news-bg-gradient" class="absolute inset-0 z-0 bg-nhk-gradient"></div>
+                <div class="absolute inset-0 z-0 overflow-hidden">
+                    <img id="news-bg-image" src="" class="w-full h-full object-cover opacity-0" alt="">
+                    <div class="absolute inset-0 bg-black/60 bg-gradient-to-t from-black via-transparent to-black/30"></div>
+                </div>
+                <div id="particles" class="absolute inset-0 z-0 overflow-hidden pointer-events-none"></div>
 
-            <!-- News Category Label -->
-            <div class="absolute top-8 left-8 md:top-10 md:left-12 flex items-center gap-4 z-20">
-                <div id="news-label" class="bg-orange-600 text-white text-xs md:text-sm font-bold px-3 py-1 md:px-4 md:py-1.5 rounded-full uppercase tracking-wider">News</div>
-                <div class="flex items-center gap-2 text-red-500 animate-pulse">
-                    <div class="w-2 h-2 md:w-2.5 md:h-2.5 bg-red-500 rounded-full"></div>
-                    <span class="text-xs md:text-sm font-bold tracking-widest">LIVE FEED</span>
+                <div class="absolute top-8 left-8 md:top-10 md:left-12 flex items-center gap-4 z-20">
+                    <div id="news-label" class="bg-gray-600 text-white text-xs md:text-sm font-bold px-3 py-1 md:px-4 md:py-1.5 rounded-full uppercase tracking-wider transition-colors duration-500 shadow-lg">News</div>
+                    <div class="flex items-center gap-2 text-red-500 animate-pulse">
+                        <div class="w-2 h-2 md:w-2.5 md:h-2.5 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.8)]"></div>
+                        <span class="text-xs md:text-sm font-bold tracking-widest drop-shadow-md">LIVE FEED</span>
+                    </div>
+                </div>
+
+                <div id="news-content-wrapper" class="w-full flex flex-col items-center text-center z-10 max-w-2xl relative transition-all duration-500 opacity-100">
+                    <div id="news-display" class="w-full flex flex-col items-center">
+                        <div class="text-gray-500 mb-4">Loading News...</div>
+                    </div>
+                </div>
+
+                <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-20 z-0">
+                    <i data-lucide="globe" class="absolute -bottom-24 -right-24 w-[24rem] h-[24rem] md:w-[32rem] md:h-[32rem] text-gray-700"></i>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div id="news-progress" class="progress-bar"></div>
                 </div>
             </div>
 
-            <!-- News Content Area -->
-            <div id="news-display" class="w-full flex flex-col items-center text-center z-10 max-w-2xl relative">
-                <div class="text-gray-500 mb-4">Loading News...</div>
+            <!-- View 2: Calendar Panel -->
+            <div id="calendar-view" class="flex flex-col h-full w-full bg-[#111] relative">
+                <div id="calendar-swipe-trigger"></div>
+                <div id="calendar-header" class="flex items-center justify-between p-4 border-b border-white/10 bg-black/50 z-10 relative">
+                    <h3 class="text-white font-eng text-lg tracking-wider">CALENDAR</h3>
+                    <button id="close-calendar" class="p-2 text-gray-400 hover:text-white transition-colors">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="flex-grow bg-white/5 relative z-0">
+                    <iframe src="https://calendar.google.com/calendar/embed?src=awazinarutotrain%40gmail.com&ctz=Asia%2FTokyo" style="border: 0" width="800" height="600" frameborder="0" scrolling="no"></iframe>
+                </div>
             </div>
 
-            <!-- Decorative Background Element (Visible if no image) -->
-            <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-20 z-0">
-                <i data-lucide="globe" class="absolute -bottom-24 -right-24 w-[24rem] h-[24rem] md:w-[32rem] md:h-[32rem] text-gray-700"></i>
-            </div>
-
-            <!-- Progress Bar -->
-            <div class="progress-bar-container">
-                <div id="news-progress" class="progress-bar"></div>
-            </div>
         </div>
 
     </div>
 
-    <script>
-        // Icons
-        lucide.createIcons();
+    <!-- Alarm Status Badge -->
+    <div id="alarm-status">
+        <i data-lucide="bell" class="w-4 h-4"></i>
+        <span id="alarm-time-display">--:--</span>
+    </div>
 
-        // ---------------------------------------------------------
-        // 0. Audio System (EEW Alert - Robust + TTS)
-        // ---------------------------------------------------------
-        let audioCtx = null;
+    <!-- City Selection Modal -->
+    <div id="city-modal" onclick="closeCityModal()">
+        <div class="bg-gray-900 border border-white/20 rounded-xl p-6" onclick="event.stopPropagation()">
+            <h3 class="text-white font-bold text-lg mb-4 text-center">地域を選択</h3>
+            <div id="city-list" class="city-grid"></div>
+        </div>
+    </div>
 
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            
-            // モバイル/省電力ブラウザ対策
-            const buffer = audioCtx.createBuffer(1, 1, 22050);
-            const source = audioCtx.createBufferSource();
-            source.buffer = buffer;
-            source.connect(audioCtx.destination);
-            source.start(0);
-
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            
-            if (window.speechSynthesis) {
-                window.speechSynthesis.cancel();
-            }
-        }
-
-        // テキスト読み上げ関数
-        function speakText(text) {
-            if (!window.speechSynthesis) return;
-            
-            window.speechSynthesis.cancel();
-            
-            const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = 'ja-JP';
-            utter.rate = 1.1; 
-            utter.pitch = 1.0;
-            utter.volume = 1.0;
-            
-            window.speechSynthesis.speak(utter);
-        }
-
-        // スタートオーバーレイの処理
-        const startOverlay = document.getElementById('start-overlay');
-        startOverlay.addEventListener('click', () => {
-            initAudio();
-            playTestBeep();
-            
-            startOverlay.style.opacity = '0';
-            startOverlay.style.pointerEvents = 'none';
-            setTimeout(() => {
-                startOverlay.style.display = 'none';
-            }, 700);
-        });
-
-        // 起動確認用の短いビープ音
-        function playTestBeep() {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-            
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
-            
-            osc.start();
-            osc.stop(audioCtx.currentTime + 0.1);
-        }
-
-        // 緊急地震速報用のアラート音を再生する
-        async function playEEWAlert() {
-            if (!audioCtx) initAudio();
-            if (!audioCtx) return;
-
-            try {
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
-                }
-            } catch (e) {
-                console.error("Audio resume failed", e);
-            }
-
-            const t = audioCtx.currentTime;
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            oscillator.type = 'sawtooth';
-            
-            gainNode.gain.setValueAtTime(0, t);
-            gainNode.gain.linearRampToValueAtTime(0.3, t + 0.1);
-            gainNode.gain.setValueAtTime(0.3, t + 2.9);
-            gainNode.gain.linearRampToValueAtTime(0, t + 3.0);
-
-            for(let i = 0; i < 3; i++) {
-                const startTime = t + i;
-                oscillator.frequency.setValueAtTime(600, startTime);
-                oscillator.frequency.linearRampToValueAtTime(900, startTime + 0.5);
-                oscillator.frequency.linearRampToValueAtTime(600, startTime + 1.0);
-            }
-
-            oscillator.start(t);
-            oscillator.stop(t + 3.0);
-        }
-
-        // ---------------------------------------------------------
-        // 1. Clock
-        // ---------------------------------------------------------
-        function updateClock() {
-            const now = new Date();
-            const days = ['日', '月', '火', '水', '木', '金', '土'];
-            const months = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
-            
-            const dateStr = `${days[now.getDay()]}曜日, ${months[now.getMonth()]}月 ${now.getDate()}日`;
-            document.getElementById('date-display').textContent = dateStr;
-
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            document.getElementById('clock-display').textContent = `${hours}:${minutes}`;
-
-            const seconds = String(now.getSeconds()).padStart(2, '0');
-            document.getElementById('seconds-display').textContent = seconds;
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        // ---------------------------------------------------------
-        // 2. Weather (Current + Weekly)
-        // ---------------------------------------------------------
-        let lastLat = 34.6901;
-        let lastLon = 135.1955;
-        let lastPlaceName = "神戸 (Default)";
-
-        function getWeatherInfo(code) {
-            if (code === 0) return { icon: 'sun', text: '快晴', color: 'text-orange-400' };
-            if (code === 1) return { icon: 'sun', text: '晴れ', color: 'text-orange-300' };
-            if (code === 2) return { icon: 'cloud-sun', text: '晴れ時々曇り', color: 'text-yellow-400' };
-            if (code === 3) return { icon: 'cloud', text: '曇り', color: 'text-gray-400' };
-            if (code === 45 || code === 48) return { icon: 'cloud-fog', text: '霧', color: 'text-gray-400' };
-            if (code >= 51 && code <= 57) return { icon: 'cloud-drizzle', text: '霧雨', color: 'text-blue-300' };
-            if (code >= 61 && code <= 67) return { icon: 'cloud-rain', text: '雨', color: 'text-blue-500' };
-            if (code >= 71 && code <= 77) return { icon: 'snowflake', text: '雪', color: 'text-cyan-200' };
-            if (code >= 80 && code <= 82) return { icon: 'cloud-rain', text: 'にわか雨', color: 'text-blue-400' };
-            if (code >= 85 && code <= 86) return { icon: 'snowflake', text: 'にわか雪', color: 'text-cyan-200' };
-            if (code >= 95) return { icon: 'cloud-lightning', text: '雷雨', color: 'text-purple-400' };
-            return { icon: 'cloud', text: '不明', color: 'text-gray-400' };
-        }
-
-        async function fetchWeather(lat, lon, placeName) {
-            const container = document.getElementById('weather-container');
-            document.getElementById('location-name').textContent = placeName;
-            
-            try {
-                // Request daily forecast as well
-                const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=5`;
-                const res = await fetch(url);
-                if (!res.ok) throw new Error('Weather API Error');
-                
-                const data = await res.json();
-                const current = data.current;
-                const daily = data.daily;
-                const info = getWeatherInfo(current.weather_code);
-
-                // Build Daily Forecast HTML (Next 4 days)
-                let weeklyHtml = '<div class="grid grid-cols-4 gap-2 mt-6 border-t border-white/10 pt-4 w-full">';
-                
-                // data.daily.time[0] is Today, so we start from 1 (Tomorrow)
-                for (let i = 1; i < 5; i++) {
-                    // Check if data exists for this day
-                    if (!daily.time[i]) break;
-
-                    const dateObj = new Date(daily.time[i]);
-                    const dayName = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
-                    const dCode = daily.weather_code[i];
-                    const dInfo = getWeatherInfo(dCode);
-                    const maxT = Math.round(daily.temperature_2m_max[i]);
-                    const minT = Math.round(daily.temperature_2m_min[i]);
-
-                    weeklyHtml += `
-                        <div class="flex flex-col items-center">
-                            <span class="text-gray-500 text-[10px] md:text-xs mb-1">${dayName}</span>
-                            <i data-lucide="${dInfo.icon}" class="w-6 h-6 md:w-8 md:h-8 mb-1 ${dInfo.color}"></i>
-                            <div class="text-xs md:text-sm font-eng flex gap-1">
-                                <span class="text-white">${maxT}°</span>
-                                <span class="text-gray-600">/</span>
-                                <span class="text-gray-500">${minT}°</span>
-                            </div>
-                        </div>
-                    `;
-                }
-                weeklyHtml += '</div>';
-
-                container.innerHTML = `
-                    <div class="flex items-center gap-5 fade-in">
-                        <i data-lucide="${info.icon}" class="w-16 h-16 md:w-20 md:h-20 ${info.color} stroke-1"></i>
-                        <div class="flex flex-col">
-                            <div class="text-5xl md:text-6xl font-eng font-bold text-white">${Math.round(current.temperature_2m)}°C</div>
-                            <div class="text-lg md:text-xl text-gray-400 font-eng tracking-wide mt-1">${info.text}</div>
-                        </div>
-                    </div>
-                    <div class="mt-4 flex gap-6 text-xs md:text-sm text-gray-500 font-eng fade-in">
-                        <div class="flex items-center gap-1.5"><i data-lucide="droplet" class="w-4 h-4"></i> 湿度: ${current.relative_humidity_2m}%</div>
-                        <div class="flex items-center gap-1.5"><i data-lucide="wind" class="w-4 h-4"></i> 風速: ${Math.round(current.wind_speed_10m)} km/h</div>
-                    </div>
-                    
-                    ${weeklyHtml}
-                `;
-                lucide.createIcons();
-            } catch (e) {
-                console.error(e);
-                container.innerHTML = '<div class="text-red-500 text-sm">天気情報の取得に失敗しました</div>';
-            }
-        }
-
-        function initWeather() {
-            const handleSuccess = async (lat, lon) => {
-                lastLat = lat;
-                lastLon = lon;
-                let placeName = "現在地";
-                try {
-                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&accept-language=ja`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        placeName = data.address.city || data.address.ward || data.address.town || "現在地";
-                    }
-                } catch (e) {}
-                lastPlaceName = placeName;
-                fetchWeather(lat, lon, placeName);
-            };
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (p) => handleSuccess(p.coords.latitude, p.coords.longitude),
-                    () => fetchWeather(lastLat, lastLon, lastPlaceName)
-                );
-            } else {
-                fetchWeather(lastLat, lastLon, lastPlaceName);
-            }
-        }
-        initWeather();
-        setInterval(() => fetchWeather(lastLat, lastLon, lastPlaceName), 1800000);
-
-
-        // ---------------------------------------------------------
-        // 3. Status Slider System (Train & Earthquake)
-        // ---------------------------------------------------------
+    <!-- Timer/Alarm Panel (Slide Up) -->
+    <div id="timer-panel">
+        <div class="absolute top-2 w-12 h-1 bg-gray-600 rounded-full mb-4"></div>
         
-        // 状態管理
-        const statusState = {
-            trainItems: [],     // 鉄道情報の配列
-            earthquakeItem: null, // 最新の地震情報（通常時）
-            eewItem: null,      // 緊急地震速報（割り込み用）
-            currentIndex: 0,
-            timer: null,
-            isEmergency: false  // EEW受信時はTrue
-        };
+        <!-- Modern Segmented Tabs -->
+        <div id="tab-control" class="tab-segment-control show-timer">
+            <div class="tab-background"></div>
+            <div class="tab-btn active" onclick="switchTab('timer')">TIMER</div>
+            <div class="tab-btn" onclick="switchTab('alarm')">ALARM</div>
+        </div>
 
-        // --- データ取得ロジック ---
-
-        // 3-1. 鉄道情報
-        async function fetchTrainInfo() {
-            const BLUESKY_RSS_URL = 'https://bsky.app/profile/did:plc:xgoesh4b2eyay7mzzqykm2vd/rss';
-            const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(BLUESKY_RSS_URL)}`;
+        <!-- Timer Mode -->
+        <div id="timer-ui" class="flex flex-col items-center">
+            <div class="flex items-center gap-4 mb-6">
+                <!-- Minutes -->
+                <div class="flex flex-col items-center">
+                    <button onclick="adjustTime(1, 0)" class="timer-control-btn mb-2"><i data-lucide="chevron-up" class="w-6 h-6"></i></button>
+                    <div id="timer-min" class="text-6xl font-bold font-eng text-white tracking-tighter w-24 text-center">00</div>
+                    <button onclick="adjustTime(-1, 0)" class="timer-control-btn mt-2"><i data-lucide="chevron-down" class="w-6 h-6"></i></button>
+                </div>
+                <div class="text-6xl font-bold text-gray-500 pb-2">:</div>
+                <!-- Seconds -->
+                <div class="flex flex-col items-center">
+                    <button onclick="adjustTime(0, 1)" class="timer-control-btn mb-2"><i data-lucide="chevron-up" class="w-6 h-6"></i></button>
+                    <div id="timer-sec" class="text-6xl font-bold font-eng text-white tracking-tighter w-24 text-center">00</div>
+                    <button onclick="adjustTime(0, -1)" class="timer-control-btn mt-2"><i data-lucide="chevron-down" class="w-6 h-6"></i></button>
+                </div>
+            </div>
             
-            try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-                
-                if (data.status === 'ok' && data.items.length > 0) {
-                    statusState.trainItems = data.items.slice(0, 20).map(item => ({
-                        type: 'train',
-                        content: item.description.replace(/<[^>]+>/g, '').trim(),
-                        time: new Date(item.pubDate.replace(" ", "T") + "Z").toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-                        title: 'Train Status (DelaInfo)',
-                        icon: 'train-front',
-                        color: 'text-sky-500',
-                        bgClass: 'bg-sky-900/30 border-sky-500',
-                        textClass: 'text-sky-100'
-                    }));
-                } else {
-                    statusState.trainItems = [{
-                        type: 'train',
-                        content: '現在、新しい運行情報はありません',
-                        time: '--:--',
-                        title: 'Train Status',
-                        icon: 'train-front',
-                        color: 'text-gray-500',
-                        bgClass: 'bg-gray-800/50 border-gray-600',
-                        textClass: 'text-gray-300'
-                    }];
-                }
-            } catch (e) {
-                console.warn("Train info fetch failed", e);
-            }
-        }
-
-        // 3-2. 地震情報 (HTTP - 履歴用)
-        async function fetchEarthquakeHistory() {
-            const API_URL = 'https://api.p2pquake.net/v2/history?codes=551&limit=1';
-            const shindoMap = { 10: "1", 20: "2", 30: "3", 40: "4", 45: "5弱", 50: "5強", 55: "6弱", 60: "6強", 70: "7" };
-
-            try {
-                const res = await fetch(API_URL);
-                const data = await res.json();
-
-                if (data && data.length > 0) {
-                    const quake = data[0];
-                    const time = new Date(quake.time).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const hypocenter = quake.hypocenter.name;
-                    const maxScale = quake.points.reduce((max, point) => Math.max(max, point.scale), 0);
-                    const displayScale = quake.maxScale ? shindoMap[quake.maxScale] : (shindoMap[maxScale] || "-");
-
-                    statusState.earthquakeItem = {
-                        type: 'earthquake',
-                        content: `震源: ${hypocenter}`,
-                        subContent: `最大震度 ${displayScale}`,
-                        time: time + " 発生",
-                        title: 'Earthquake Info',
-                        icon: 'activity',
-                        color: 'text-red-500',
-                        bgClass: 'bg-red-900/20 border-red-900/50',
-                        textClass: 'text-white',
-                        isHighAlert: false
-                    };
-                }
-            } catch (e) {
-                console.warn("Quake history fetch failed", e);
-            }
-        }
-
-        // 3-3. リアルタイム地震情報 (WebSocket - P2P Quake)
-        function connectP2PQuakeWS() {
-            const ws = new WebSocket('wss://api.p2pquake.net/v2/ws');
-
-            ws.onopen = () => {
-                console.log('Connected to P2P Quake WS');
-            };
-
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                
-                if (data.code === 551) {
-                    fetchEarthquakeHistory();
-                }
-
-                if (data.code === 554) {
-                    console.log("EEW Received!", data);
-                    if (data.cancelled) {
-                        statusState.isEmergency = false;
-                        statusState.eewItem = null;
-                        renderStatusSlide();
-                    } else {
-                        statusState.isEmergency = true;
-                        
-                        playEEWAlert();
-
-                        let areaText = "詳細不明";
-                        if (data.areas && data.areas.length > 0) {
-                            const names = data.areas.map(a => a.name).filter(n => n);
-                            if (names.length > 3) {
-                                areaText = names.slice(0, 3).join(' ') + ' 他';
-                            } else {
-                                areaText = names.join(' ');
-                            }
-                        }
-                        
-                        speakText(`緊急地震速報。${areaText}。警戒してください。`);
-
-                        statusState.eewItem = {
-                            type: 'eew',
-                            content: `緊急地震速報 (対象地域)`,
-                            subContent: areaText,
-                            time: 'JUST NOW',
-                            title: 'EMERGENCY ALERT',
-                            icon: 'alert-triangle',
-                            color: 'text-white',
-                            bgClass: 'bg-red-600 border-red-500 animate-pulse-red',
-                            textClass: 'text-white font-bold',
-                            isHighAlert: true
-                        };
-                        renderStatusSlide();
-                    }
-                }
-            };
-
-            ws.onclose = () => {
-                setTimeout(connectP2PQuakeWS, 10000);
-            };
-        }
-
-        // --- スライド表示ロジック ---
-
-        function getAllItems() {
-            if (statusState.isEmergency && statusState.eewItem) {
-                return [statusState.eewItem];
-            }
-            let items = [...statusState.trainItems];
-            if (statusState.earthquakeItem) {
-                items.push(statusState.earthquakeItem);
-            }
-            return items;
-        }
-
-        function renderStatusSlide() {
-            const container = document.getElementById('status-content');
-            const header = document.getElementById('status-header');
-            const indicators = document.getElementById('status-indicators');
-
-            const items = getAllItems();
-            if (items.length === 0) return;
-
-            const index = statusState.isEmergency ? 0 : (statusState.currentIndex % items.length);
-            const item = items[index];
-
-            header.innerHTML = `
-                <i data-lucide="${item.icon}" class="w-5 h-5 transition-colors duration-300 ${item.color}"></i>
-                <span>${item.title}</span>
-            `;
-
-            let contentHtml = '';
+            <div class="flex gap-4 mb-6">
+                <button onclick="adjustTime(0, 30)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-bold transition">+30s</button>
+                <button onclick="addTimePreset(3)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-bold transition">+3m</button>
+                <button onclick="addTimePreset(5)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-bold transition">+5m</button>
+                <button onclick="addTimePreset(10)" class="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm font-bold transition">+10m</button>
+            </div>
             
-            if (item.type === 'earthquake' || item.type === 'eew') {
-                contentHtml = `
-                    <div class="${item.bgClass} border rounded-lg p-5 flex flex-col justify-center min-h-[120px] fade-in shadow-lg">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm ${item.isHighAlert ? 'text-red-100' : 'text-gray-400'}">${item.time}</span>
-                            ${item.isHighAlert ? '<span class="bg-white text-red-600 text-xs px-2 py-0.5 rounded font-bold">ALERT</span>' : ''}
-                        </div>
-                        <div class="${item.textClass} text-base leading-tight">
-                            ${item.content}
-                        </div>
-                        ${item.subContent ? `<div class="text-3xl font-bold mt-2 ${item.textClass}">${item.subContent}</div>` : ''}
-                    </div>
-                `;
-            } else {
-                contentHtml = `
-                    <div class="${item.bgClass} border-l-4 p-5 rounded-r min-h-[120px] flex flex-col justify-center fade-in">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs text-gray-400 font-bold tracking-wide">INFO</span>
-                            <span class="text-xs text-gray-400">${item.time}</span>
-                        </div>
-                        <div class="${item.textClass} text-base leading-relaxed line-clamp-3">
-                            ${item.content}
-                        </div>
-                    </div>
-                `;
-            }
-            container.innerHTML = contentHtml;
+            <div class="flex gap-4">
+                <button onclick="resetTimer()" class="px-8 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-full font-bold transition">RESET</button>
+                <button id="timer-toggle-btn" onclick="toggleTimer()" class="px-10 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-full font-bold transition shadow-lg shadow-orange-500/30">START</button>
+            </div>
+        </div>
 
-            if (statusState.isEmergency) {
-                indicators.innerHTML = '';
-            } else {
-                indicators.innerHTML = items.map((_, i) => `
-                    <div class="w-2 h-2 rounded-full transition-colors duration-300 ${i === index ? 'bg-orange-500' : 'bg-gray-700'}"></div>
-                `).join('');
-            }
+        <!-- Alarm Mode -->
+        <div id="alarm-ui" class="flex flex-col items-center hidden">
+            <div class="flex items-center gap-4 mb-8">
+                <!-- Hours -->
+                <div class="flex flex-col items-center">
+                    <button onclick="adjustAlarm(1, 0)" class="timer-control-btn mb-2"><i data-lucide="chevron-up" class="w-6 h-6"></i></button>
+                    <div id="alarm-hour" class="text-6xl font-bold font-eng text-white tracking-tighter w-24 text-center">07</div>
+                    <button onclick="adjustAlarm(-1, 0)" class="timer-control-btn mt-2"><i data-lucide="chevron-down" class="w-6 h-6"></i></button>
+                </div>
+                <div class="text-6xl font-bold text-gray-500 pb-2">:</div>
+                <!-- Minutes -->
+                <div class="flex flex-col items-center">
+                    <button onclick="adjustAlarm(0, 1)" class="timer-control-btn mb-2"><i data-lucide="chevron-up" class="w-6 h-6"></i></button>
+                    <div id="alarm-min" class="text-6xl font-bold font-eng text-white tracking-tighter w-24 text-center">00</div>
+                    <button onclick="adjustAlarm(0, -1)" class="timer-control-btn mt-2"><i data-lucide="chevron-down" class="w-6 h-6"></i></button>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button id="alarm-toggle-btn" onclick="toggleAlarm()" class="px-12 py-4 bg-gray-700 hover:bg-gray-600 text-white rounded-full font-bold transition shadow-lg">SET ALARM</button>
+            </div>
+        </div>
+        
+        <button id="close-timer" class="absolute top-6 right-6 p-2 text-gray-500 hover:text-white">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+    </div>
 
+    <!-- Time Up Modal -->
+    <div id="time-up-modal" onclick="stopAlarmSound()">
+        <div class="relative">
+            <div class="absolute inset-0 bg-orange-500 blur-xl opacity-30 rounded-full animate-pulse"></div>
+            <i data-lucide="bell-ring" class="relative w-24 h-24 text-white mb-6 animate-bounce"></i>
+        </div>
+        <div id="time-up-message" class="time-up-text font-sans">タイマーの時間です。</div>
+        <div class="text-gray-300 mt-6 animate-pulse text-lg">Tap screen to stop</div>
+    </div>
+
+    <!-- Fullscreen Toggle Button -->
+    <button id="fullscreen-btn" title="Toggle Fullscreen">
+        <i data-lucide="maximize" class="w-6 h-6"></i>
+    </button>
+
+    <script>
+        // --- GLOBAL VARIABLES & CONSTANTS ---
+        const statusState = { trainItems: [], earthquakeItem: null, eewItem: null, currentIndex: 0, isEmergency: false };
+        let audioCtx = null;
+        let timeOffset = 0;
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let isTimerRunning = false;
+        let alarmInterval = null;
+        let alarmHour = 7;
+        let alarmMin = 0;
+        let isAlarmSet = false;
+        let currentCityId = 280010; // Default Kobe
+        
+        const CITY_LIST = [
+            { id: '016010', name: '札幌' }, { id: '040010', name: '仙台' }, { id: '130010', name: '東京' },
+            { id: '140010', name: '横浜' }, { id: '230010', name: '名古屋' }, { id: '260010', name: '京都' },
+            { id: '270000', name: '大阪' }, { id: '280010', name: '神戸' }, { id: '340010', name: '広島' },
+            { id: '400010', name: '福岡' }, { id: '471010', name: '那覇' }
+        ];
+
+        const RSS_SOURCES = [
+            { url: 'https://news.yahoo.co.jp/rss/topics/top-picks.xml', name: 'Yahoo! News', color: 'bg-[#fc0137]', gradientClass: 'bg-yahoo-gradient' },
+            { url: 'https://www.nhk.or.jp/rss/news/cat0.xml', name: 'NHK News', color: 'bg-[#4945b7]', gradientClass: 'bg-nhk-gradient' }
+        ];
+        let newsItems = [];
+        let currentNewsIndex = 0;
+        let slideTimer = null;
+
+        // --- DOMContentLoaded ---
+        document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
-        }
+            createParticles();
+            initSwipe();
+            initFullscreen();
+            initCityModal();
+            
+            document.body.addEventListener('click', () => {
+                initAudio();
+            }, { once: true });
 
-        function startStatusSlide() {
-            renderStatusSlide();
+            initAudio();
+            syncTimeWithJST();
+            setInterval(syncTimeWithJST, 3600000); 
+            setInterval(updateClock, 100);
+            updateClock();
+            
+            // Load saved city
+            const savedCity = localStorage.getItem('weather_city_id');
+            if(savedCity) currentCityId = savedCity;
+
+            fetchWeather(currentCityId); 
+            Promise.all([fetchTrainInfo(), fetchEarthquakeHistory()]).then(() => {
+                connectP2PQuakeWS();
+                renderStatusSlide();
+            });
+            fetchNews();
+
+            setInterval(fetchTrainInfo, 5 * 60 * 1000);
+            setInterval(() => {
+                console.log("Refreshing Data...");
+                fetchWeather(currentCityId);
+                fetchNews();
+                fetchEarthquakeHistory();
+            }, 15 * 60 * 1000);
             
             setInterval(() => {
                 if (!statusState.isEmergency) {
@@ -739,158 +656,231 @@
                     renderStatusSlide();
                 }
             }, 5000);
+
+            setInterval(fetchNews, 600000); 
+            setInterval(checkAlarm, 1000);
+        });
+
+        // --- Functions ---
+
+        function initCityModal() {
+            const list = document.getElementById('city-list');
+            CITY_LIST.forEach(city => {
+                const btn = document.createElement('div');
+                btn.className = `city-btn ${city.id == currentCityId ? 'active' : ''}`;
+                btn.textContent = city.name;
+                btn.onclick = () => changeCity(city.id);
+                list.appendChild(btn);
+            });
         }
 
-        async function initStatusBoard() {
-            await Promise.all([fetchTrainInfo(), fetchEarthquakeHistory()]);
-            connectP2PQuakeWS();
-            startStatusSlide();
+        function openCityModal() {
+            document.getElementById('city-modal').classList.add('open');
         }
 
-        // 運行情報を5分ごとに更新
-        setInterval(fetchTrainInfo, 300000);
+        function closeCityModal() {
+            document.getElementById('city-modal').classList.remove('open');
+        }
 
-        initStatusBoard();
-
-
-        // ---------------------------------------------------------
-        // 4. News (Slide & QR Code) - Robust Version
-        // ---------------------------------------------------------
-        
-        const RSS_URLS = [
-            'https://www.nhk.or.jp/rss/news/cat0.xml',
-            'https://news.yahoo.co.jp/rss/topics/top-picks.xml'
-        ];
-        
-        let newsItems = [];
-        let currentNewsIndex = 0;
-        const SLIDE_DURATION = 8000;
-
-        async function fetchNews(retryIndex = 0) {
-            if (retryIndex >= RSS_URLS.length) {
-                document.getElementById('news-display').innerHTML = '<div class="text-gray-500">ニュースを取得できませんでした<br><span class="text-xs">(Retrying later...)</span></div>';
-                return;
-            }
-
-            const rssUrl = RSS_URLS[retryIndex];
-            const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+        function changeCity(id) {
+            currentCityId = id;
+            localStorage.setItem('weather_city_id', id);
             
-            try {
-                const res = await fetch(apiUrl);
-                const data = await res.json();
-                
-                if (data.status === 'ok' && data.items.length > 0) {
-                    newsItems = data.items.map(item => {
-                        // 画像URL抽出ロジック
-                        let img = null;
-                        if (item.enclosure && item.enclosure.link) img = item.enclosure.link;
-                        else if (item.thumbnail) img = item.thumbnail;
-                        else if (item.description) {
-                            const match = item.description.match(/<img[^>]+src="([^">]+)"/);
-                            if (match) img = match[1];
-                        }
+            // Force re-fetch weather with new ID and cache buster
+            const container = document.getElementById('weather-container');
+            if(container) container.innerHTML = '<div class="text-gray-500 animate-pulse">Loading...</div>'; // Feedback
+            fetchWeather(id);
+            
+            closeCityModal();
+            
+            // Update active state in list
+            document.querySelectorAll('.city-btn').forEach(btn => btn.classList.remove('active'));
+            // Re-render list (simple way to update active class)
+            const list = document.getElementById('city-list');
+            list.innerHTML = '';
+            CITY_LIST.forEach(city => {
+                const btn = document.createElement('div');
+                btn.className = `city-btn ${city.id == currentCityId ? 'active' : ''}`;
+                btn.textContent = city.name;
+                btn.onclick = () => changeCity(city.id);
+                list.appendChild(btn);
+            });
+        }
 
-                        return {
-                            ...item,
-                            cleanDescription: (item.description || '').replace(/<[^>]+>/g, '').trim().substring(0, 150) + '...',
-                            source: retryIndex === 0 ? 'NHK News' : 'Yahoo! News',
-                            imageUrl: img
-                        };
-                    });
+        function initAudio() { 
+            if(!audioCtx) { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } 
+            if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{}); 
+            if(window.speechSynthesis) window.speechSynthesis.cancel(); 
+        }
 
-                    const label = document.getElementById('news-label');
-                    if(label) label.textContent = newsItems[0].source;
-
-                    if (!window.newsInterval) {
-                        startNewsSlide();
-                    }
-                } else {
-                    throw new Error("API Error");
+        async function syncTimeWithJST() { 
+            try{ 
+                const res=await fetch('https://worldtimeapi.org/api/timezone/Asia/Tokyo'); 
+                if(res.ok){ 
+                    const d=await res.json(); 
+                    timeOffset=(new Date(d.datetime).getTime()+(performance.now()-performance.now())/2)-Date.now(); 
                 }
-            } catch (e) {
-                console.warn(`Fetch failed for ${rssUrl}`, e);
-                fetchNews(retryIndex + 1);
-            }
+            }catch(e){} 
         }
 
-        function convertUtcToJstTime(pubDate) {
-            const utcDateStr = pubDate.replace(" ", "T") + "Z";
-            return new Date(utcDateStr).toLocaleTimeString('ja-JP', { 
-                hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Tokyo' 
-            });
+        function speakText(t){ 
+            if(!window.speechSynthesis)return; 
+            window.speechSynthesis.cancel(); 
+            const u=new SpeechSynthesisUtterance(t); 
+            u.lang='ja-JP'; 
+            u.rate=1.1; 
+            window.speechSynthesis.speak(u); 
         }
 
-        function showNews(index) {
-            if (!newsItems || newsItems.length === 0) return;
-            const safeIndex = index % newsItems.length;
+        function playTestBeep(){ 
+            if(!audioCtx)return; 
+            const o=audioCtx.createOscillator(); 
+            const g=audioCtx.createGain(); 
+            o.connect(g); 
+            g.connect(audioCtx.destination); 
+            o.frequency.setValueAtTime(880,audioCtx.currentTime); 
+            g.gain.setValueAtTime(0.01,audioCtx.currentTime); 
+            g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.05); 
+            o.start(); 
+            o.stop(audioCtx.currentTime+0.05); 
+        }
+
+        async function playEEWAlert(){ 
+            if(!audioCtx)initAudio(); 
+            if(!audioCtx||audioCtx.state==='suspended')return; 
+            const t=audioCtx.currentTime; 
+            const o=audioCtx.createOscillator(); 
+            const g=audioCtx.createGain(); 
+            o.connect(g); 
+            g.connect(audioCtx.destination); 
+            o.type='sawtooth'; 
+            g.gain.setValueAtTime(0,t); 
+            g.gain.linearRampToValueAtTime(0.3,t+0.1); 
+            g.gain.setValueAtTime(0.3,t+2.9); 
+            g.gain.linearRampToValueAtTime(0,t+3.0); 
+            for(let i=0;i<3;i++){ 
+                o.frequency.setValueAtTime(600,t+i); 
+                o.frequency.linearRampToValueAtTime(900,t+i+0.5); 
+                o.frequency.linearRampToValueAtTime(600,t+i+1.0); 
+            } 
+            o.start(t); 
+            o.stop(t+3.0); 
+        }
+
+        function updateClock(){ 
+            const n=new Date(Date.now()+timeOffset); 
+            const d=['日','月','火','水','木','金','土']; 
+            document.getElementById('date-display').textContent=`${d[n.getDay()]}曜日, ${['1','2','3','4','5','6','7','8','9','10','11','12'][n.getMonth()]}月 ${n.getDate()}日`; 
+            document.getElementById('clock-display').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`; 
+            document.getElementById('seconds-display').textContent=String(n.getSeconds()).padStart(2,'0'); 
+        }
+
+        function initFullscreen(){ 
+            const b=document.getElementById('fullscreen-btn'); 
+            b.addEventListener('click',()=>{ 
+                if(!document.fullscreenElement){ 
+                    document.documentElement.requestFullscreen().catch(e=>{}); 
+                }else{ 
+                    if(document.exitFullscreen) document.exitFullscreen(); 
+                } 
+            }); 
+        }
+
+        // Weather
+        function getWeatherIcon(telop) {
+            if (telop.includes('晴')) { if (telop.includes('曇')) return {icon:'cloud-sun',color:'text-yellow-400'}; if (telop.includes('雨')) return {icon:'cloud-rain',color:'text-blue-400'}; return {icon:'sun',color:'text-orange-400'}; }
+            if (telop.includes('曇')) { if (telop.includes('晴')) return {icon:'cloud-sun',color:'text-gray-300'}; if (telop.includes('雨')) return {icon:'cloud-drizzle',color:'text-blue-300'}; return {icon:'cloud',color:'text-gray-400'}; }
+            if (telop.includes('雨')) { if (telop.includes('雷')) return {icon:'cloud-lightning',color:'text-purple-400'}; return {icon:'cloud-rain',color:'text-blue-500'}; }
+            if (telop.includes('雪')) return {icon:'snowflake',color:'text-cyan-200'}; return {icon:'cloud',color:'text-gray-400'};
+        }
+
+        async function fetchWeather(id){
+            const c=document.getElementById('weather-container'); 
+            const ln=document.getElementById('location-name');
+            try {
+                // Add timestamp to prevent caching
+                const r=await fetch(`https://weather.tsukumijima.net/api/forecast/city/${id}?t=${Date.now()}`); 
+                const d=await r.json();
+                if(ln) ln.textContent=d.location.city;
+                const t=d.forecasts[0]; 
+                const tMax=t.temperature.max.celsius;
+                let main=t; let idx=1; 
+                if(tMax===null){ main=d.forecasts[1]; idx=2; }
+                const mIcon=getWeatherIcon(main.telop);
+                const maxHtml=main.temperature.max.celsius!==null?`<div class="text-5xl md:text-6xl font-eng font-bold text-red-500">${main.temperature.max.celsius}°C</div>`:`<div class="text-5xl md:text-6xl font-eng font-bold text-gray-500">--°C</div>`;
+                let wHtml='<div class="grid grid-cols-2 gap-2 mt-6 border-t border-white/10 pt-4 w-full">';
+                for(let i=idx;i<3&&i<d.forecasts.length;i++){
+                    const f=d.forecasts[i]; const fi=getWeatherIcon(f.telop);
+                    const mx=f.temperature.max.celsius; const mn=f.temperature.min.celsius;
+                    let th=''; if(mx) th+=`<span class="text-red-500 font-bold">${mx}°</span>`; if(mx&&mn) th+=`<span class="text-gray-600 mx-1">/</span>`; if(mn) th+=`<span class="text-blue-500 font-bold">${mn}°</span>`;
+                    wHtml+=`<div class="flex flex-col items-center"><span class="text-gray-500 text-[10px] md:text-xs mb-1">${f.dateLabel}</span><i data-lucide="${fi.icon}" class="w-6 h-6 md:w-8 md:h-8 mb-1 ${fi.color}"></i><div class="text-xs md:text-sm font-eng flex">${th}</div></div>`;
+                }
+                wHtml+='</div>';
+                c.innerHTML=`<div class="flex items-center gap-5 anim-slide-up"><div class="flex flex-col items-center gap-1"><i data-lucide="${mIcon.icon}" class="w-16 h-16 md:w-20 md:h-20 ${mIcon.color} stroke-1"></i></div><div class="flex flex-col">${maxHtml}<div class="text-lg md:text-xl text-gray-400 font-eng tracking-wide mt-1">${main.telop}</div></div></div>${wHtml}`;
+                lucide.createIcons();
+            } catch(e){ if(c) c.innerHTML='<div class="text-red-500 text-sm">Update Failed</div>'; }
+        }
+
+        // Status & News logic (Kept same)
+        function getTrainStatusColor(text) { 
+            // Priority Check
+            if (text.includes("平常") || text.includes("再開")) return "text-sky-500"; 
+            if (text.includes("見合") || text.includes("運休") || text.includes("停止")) return "text-red-500"; 
+            if (text.includes("遅れ") || text.includes("遅延") || text.includes("乱れ")) return "text-orange-400"; 
+            return "text-sky-500"; 
+        }
+        async function fetchTrainInfo(){ try { const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fbsky.app%2Fprofile%2Fdid%3Aplc%3Axgoesh4b2eyay7mzzqykm2vd%2Frss`); const d=await r.json(); if(d.status==='ok'){ statusState.trainItems = d.items.slice(0,20).map(i=>{ const desc = i.description.replace(/<[^>]+>/g,'').trim(); const colorClass = getTrainStatusColor(desc); const bgClass = colorClass.includes('red') ? 'bg-red-900/20 border-red-500' : (colorClass.includes('orange') ? 'bg-orange-900/20 border-orange-500' : 'bg-sky-900/20 border-sky-500'); return { type:'train', content:desc, time:new Date(i.pubDate.replace(" ","T")+"Z").toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}), title:'Train Info', icon:'train-front', color:colorClass, bgClass: bgClass, textClass: colorClass.replace('text-', 'text-') }; }); } } catch(e){} }
+        async function fetchEarthquakeHistory(){ try{ const r=await fetch('https://api.p2pquake.net/v2/history?codes=551&limit=1'); const d=await r.json(); if(d&&d.length>0){ const q=d[0]; statusState.earthquakeItem={ type:'earthquake', content:`震源: ${q.hypocenter.name}`, subContent:`最大震度 ${q.maxScale?q.maxScale/10:'-'}`, time:new Date(q.time).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}), title:'Earthquake Info', icon:'activity', color:'text-red-500', bgClass:'bg-red-900/20 border-red-900/50', textClass:'text-white', isHighAlert:false }; } }catch(e){} }
+        function connectP2PQuakeWS(){ const ws=new WebSocket('wss://api.p2pquake.net/v2/ws'); ws.onmessage=(e)=>{ const d=JSON.parse(e.data); if(d.code===551)fetchEarthquakeHistory(); if(d.code===554){ if(d.cancelled){ statusState.isEmergency=false; statusState.eewItem=null; }else{ statusState.isEmergency=true; playEEWAlert(); let a="詳細不明"; if(d.areas&&d.areas.length>0){ const n=d.areas.map(z=>z.name).filter(x=>x); a=n.length>3?n.slice(0,3).join(' ')+' 他':n.join(' '); } speakText(`緊急地震速報。${a}。`); statusState.eewItem={ type:'eew', content:`緊急地震速報`, subContent:a, time:'JUST NOW', title:'EMERGENCY', icon:'alert-triangle', color:'text-white', bgClass:'bg-red-600 border-red-500 animate-pulse-red', textClass:'text-white font-bold', isHighAlert:true }; } renderStatusSlide(); } }; ws.onclose=()=>setTimeout(connectP2PQuakeWS,10000); }
+        function renderStatusSlide(){ const c=document.getElementById('status-content'); if(!c)return; const items=statusState.isEmergency?[statusState.eewItem]:[...statusState.trainItems,statusState.earthquakeItem].filter(x=>x); if(items.length===0)return; const item=items[statusState.currentIndex%items.length]; document.getElementById('status-header').innerHTML=`<i data-lucide="${item.icon}" class="w-5 h-5 ${item.color}"></i><span>${item.title}</span>`; const textColor=item.color; let html=`<div class="${item.bgClass} border-l-4 p-5 rounded-r min-h-[120px] flex flex-col justify-center fade-enter-active"><div class="flex justify-between items-center mb-2"><span class="text-xs text-gray-400 font-bold tracking-wide">INFO</span><span class="text-xs text-gray-400">${item.time}</span></div><div class="${textColor} text-base leading-relaxed line-clamp-3">${item.content}</div>${item.subContent?`<div class="text-2xl font-bold mt-1 text-white">${item.subContent}</div>`:''}</div>`; c.innerHTML=html; const ind=document.getElementById('status-indicators'); if(ind){ if(!statusState.isEmergency){ ind.innerHTML=items.map((_,i)=>`<div class="w-2 h-2 rounded-full transition-colors duration-300 ${i===(statusState.currentIndex%items.length)?'bg-orange-500':'bg-gray-700'}"></div>`).join(''); }else{ ind.innerHTML=''; } } lucide.createIcons(); }
+        async function fetchWithFallback(u,t='json'){ const s=[async()=>{if(t!=='json')throw 0;const r=await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(u)}&t=${Date.now()}`);if(!r.ok)throw 0;const d=await r.json();if(d.status!=='ok')throw 0;return d.items.map(i=>({title:i.title,link:i.link,pubDate:i.pubDate,description:i.description,enclosure:i.enclosure,thumbnail:i.thumbnail,content:i.content}));},async()=>{const r=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`);if(!r.ok)throw 0;const x=await r.text();return t==='json'?parseXMLRSS(x):x;},async()=>{const r=await fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`);if(!r.ok)throw 0;const x=await r.text();return t==='json'?parseXMLRSS(x):x;}]; for(const f of s){try{const r=await f();if(r)return r;}catch(e){}} return null; }
+        function parseXMLRSS(t){ const p=new DOMParser();const x=p.parseFromString(t,"text/xml");return Array.from(x.querySelectorAll("item")).map(i=>({title:i.querySelector("title")?.textContent,link:i.querySelector("link")?.textContent,pubDate:i.querySelector("pubDate")?.textContent,description:i.querySelector("description")?.textContent||"",content:i.querySelector("encoded")?.textContent||"",enclosure:i.querySelector("enclosure")?{link:i.querySelector("enclosure").getAttribute("url")}:{},thumbnail:""})); }
+        async function fetchOGPImage(u){ const h=await fetchWithFallback(u,'html'); if(!h)return null; try{const p=new DOMParser();const d=p.parseFromString(h,'text/html');return d.querySelector('meta[property="og:image"]')?.content;}catch(e){return null;} }
+        async function fetchNews(){ let all=[]; for(const s of RSS_SOURCES){ const i=await fetchWithFallback(s.url,'json'); if(i){ all=all.concat(i.map(x=>({...x,source:s.name,sourceColor:s.color,gradientClass:s.gradientClass}))); } } if(all.length>0){ newsItems=all.map(i=>{ let im=null; if(i.enclosure?.link)im=i.enclosure.link;else if(i.thumbnail)im=i.thumbnail;else if(i.content?.match(/<img[^>]+src="([^">]+)"/))im=i.content.match(/<img[^>]+src="([^">]+)"/)[1];else if(i.description?.match(/<img[^>]+src="([^">]+)"/))im=i.description.match(/<img[^>]+src="([^">]+)"/)[1]; let cd=i.description.replace(/<[^>]+>/g,'').trim();if(cd.length>150)cd=cd.substring(0,150)+'...'; let tm=0;try{tm=new Date(i.pubDate).getTime();if(isNaN(tm))tm=0;}catch(e){} return {title:i.title,cleanDescription:cd,link:i.link,source:i.source,sourceColor:i.sourceColor,gradientClass:i.gradientClass,imageUrl:im,timestamp:tm,rawDate:i.pubDate,ogpFetched:false}; }).sort((a,b)=>b.timestamp-a.timestamp); processBackgroundImages(); if(!window.newsInterval) startNewsSlide(); } }
+        async function processBackgroundImages(){ for(const i of newsItems){ if(i.imageUrl){ new Image().src=i.imageUrl; }else if(!i.ogpFetched){ i.ogpFetched=true; fetchOGPImage(i.link).then(u=>{ if(u){ i.imageUrl=u; new Image().src=u; } }); await new Promise(r=>setTimeout(r,1000)); } } }
+        function startNewsSlide(){ if(newsItems.length===0)return; updateNewsUI(currentNewsIndex); if(slideTimer)clearInterval(slideTimer); slideTimer=setInterval(()=>{currentNewsIndex=(currentNewsIndex+1)%newsItems.length;updateNewsUI(currentNewsIndex);},8000); }
+        async function updateNewsUI(idx){ const i=newsItems[idx]; const c=document.getElementById('transition-curtain'); if(c){ c.className=`transition-curtain ${i.sourceColor}`; c.classList.remove('animate-curtain'); void c.offsetWidth; c.classList.add('animate-curtain'); } const pb=document.getElementById('news-progress'); if(pb){ pb.style.transition='none'; pb.style.width='0%'; } await new Promise(r=>setTimeout(r,500)); const nl=document.getElementById('news-label'); if(nl){ nl.textContent=i.source; nl.className=`text-white text-xs md:text-sm font-bold px-3 py-1 md:px-4 md:py-1.5 rounded-full uppercase tracking-wider transition-colors duration-500 ${i.sourceColor} shadow-lg`; } const bi=document.getElementById('news-bg-image'); const bg=document.getElementById('news-bg-gradient'); if(bi){ bi.classList.remove('zoom-active'); if(i.imageUrl){ bi.src=i.imageUrl; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; }else{ bi.style.opacity='0'; if(bg){ bg.className=`absolute inset-0 z-0 ${i.gradientClass}`; bg.style.opacity='0.8'; } if(!i.ogpFetched){ i.ogpFetched=true; fetchOGPImage(i.link).then(u=>{ if(u){ i.imageUrl=u; if(newsItems[currentNewsIndex]===i){ bi.src=u; bi.style.opacity='1'; if(bg)bg.style.opacity='0'; } } }); } } void bi.offsetWidth; bi.classList.add('zoom-active'); } let dStr="--:--"; try{dStr=new Date(i.rawDate).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tokyo'});}catch(e){} const d=document.getElementById('news-display'); if(d){ d.innerHTML=`<div class="flex flex-col items-center w-full"><div class="anim-slide-up mb-4 text-orange-400 font-eng text-sm tracking-widest bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm" style="animation-delay: 0.1s;">${dStr} 更新</div><h2 class="anim-slide-up text-3xl md:text-4xl font-bold text-white leading-tight mb-6 min-h-[120px] flex items-center justify-center line-clamp-3 drop-shadow-lg" style="text-shadow: 0 4px 10px rgba(0,0,0,0.8); animation-delay: 0.2s;">${i.title}</h2><p class="anim-slide-up text-base md:text-lg text-gray-200 mb-8 line-clamp-3 max-w-3xl drop-shadow-md" style="text-shadow: 0 2px 5px rgba(0,0,0,0.8); animation-delay: 0.3s;">${i.cleanDescription}</p><div class="anim-slide-up flex items-center gap-8 scale-110" style="animation-delay: 0.4s;"><a href="${i.link}" target="_blank" rel="noopener noreferrer" class="bg-white p-3 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform duration-300"><div id="qrcode"></div></a><div class="flex flex-col text-left"><div class="text-gray-300 text-sm mt-2 font-eng tracking-widest uppercase drop-shadow">記事を読む</div><div class="text-white text-xl font-bold drop-shadow">QRコードをスキャンまたはクリック</div></div></div></div>`; const q=document.getElementById("qrcode"); if(q){ q.innerHTML=""; new QRCode(q,{text:i.link,width:120,height:120,correctLevel:QRCode.CorrectLevel.L}); } } if(pb){ requestAnimationFrame(()=>{ setTimeout(()=>{ pb.style.transition='width 7500ms linear'; pb.style.width='100%'; },600); }); } }
+
+        // Timer/Alarm Logic & Swipe
+        function switchTab(t){ 
+            const tu=document.getElementById('timer-ui'); const au=document.getElementById('alarm-ui'); 
+            const tc=document.getElementById('tab-control');
+            const btns = document.querySelectorAll('.tab-btn');
             
-            const container = document.getElementById('news-display');
-            const bgImage = document.getElementById('news-bg-image');
-            const item = newsItems[safeIndex];
-            const pubTime = convertUtcToJstTime(item.pubDate);
-
-            if (item.imageUrl) {
-                bgImage.src = item.imageUrl;
-                bgImage.style.opacity = '1';
-            } else {
-                bgImage.style.opacity = '0';
-            }
-
-            container.innerHTML = `
-                <div class="fade-in flex flex-col items-center w-full">
-                    <div class="mb-4 text-orange-400 font-eng text-sm tracking-widest bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm">${pubTime} 更新</div>
-                    <h2 class="text-3xl md:text-4xl font-bold text-white leading-tight mb-6 min-h-[120px] flex items-center justify-center line-clamp-3 drop-shadow-lg">
-                        ${item.title}
-                    </h2>
-                    <p class="text-base md:text-lg text-gray-200 mb-8 line-clamp-3 max-w-3xl drop-shadow-md">
-                        ${item.cleanDescription}
-                    </p>
-                    <div class="flex items-center gap-8 scale-110">
-                        <div class="bg-white p-3 rounded-lg shadow-lg">
-                            <div id="qrcode"></div>
-                        </div>
-                        <div class="flex flex-col text-left">
-                            <div class="text-gray-300 text-sm mt-2 font-eng tracking-widest uppercase drop-shadow">記事を読む</div>
-                            <div class="text-white text-xl font-bold drop-shadow">QRコードをスキャン</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            const qrContainer = document.getElementById("qrcode");
-            qrContainer.innerHTML = "";
-            new QRCode(qrContainer, {
-                text: item.link, width: 120, height: 120, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
-            });
+            if(t==='timer'){ 
+                tu.classList.remove('hidden'); au.classList.add('hidden'); 
+                tc.classList.remove('show-alarm'); tc.classList.add('show-timer');
+                btns[0].classList.add('active'); btns[1].classList.remove('active');
+            }else{ 
+                tu.classList.add('hidden'); au.classList.remove('hidden'); 
+                tc.classList.remove('show-timer'); tc.classList.add('show-alarm');
+                btns[0].classList.remove('active'); btns[1].classList.add('active');
+            } 
         }
-
-        function startNewsSlide() {
-            if (newsItems.length === 0) return;
-            showNews(currentNewsIndex);
-            resetProgressBar();
-            
-            if (window.newsInterval) clearInterval(window.newsInterval);
-            
-            window.newsInterval = setInterval(() => {
-                currentNewsIndex = (currentNewsIndex + 1) % newsItems.length;
-                showNews(currentNewsIndex);
-                resetProgressBar();
-            }, SLIDE_DURATION);
+        function updateTimerDisplay(){ const m=Math.floor(timerSeconds/60); const s=timerSeconds%60; document.getElementById('timer-min').textContent=String(m).padStart(2,'0'); document.getElementById('timer-sec').textContent=String(s).padStart(2,'0'); }
+        function adjustTime(dm, ds){ if(isTimerRunning)return; let n=timerSeconds+(dm*60)+ds; if(n<0)n=0; if(n>5999)n=5999; timerSeconds=n; updateTimerDisplay(); }
+        function addTimePreset(m){ if(isTimerRunning)return; adjustTime(m,0); }
+        function resetTimer(){ stopTimer(); timerSeconds=0; updateTimerDisplay(); }
+        function toggleTimer(){ if(isTimerRunning)stopTimer(); else startTimer(); }
+        function startTimer(){ if(timerSeconds<=0)return; isTimerRunning=true; document.getElementById('timer-toggle-btn').textContent="PAUSE"; document.getElementById('timer-toggle-btn').classList.replace('bg-orange-500','bg-red-500'); timerInterval=setInterval(()=>{ if(timerSeconds>0){ timerSeconds--; updateTimerDisplay(); }else{ stopTimer(); triggerTimeUp("タイマーの時間です。"); } },1000); }
+        function stopTimer(){ isTimerRunning=false; if(timerInterval)clearInterval(timerInterval); document.getElementById('timer-toggle-btn').textContent="START"; document.getElementById('timer-toggle-btn').classList.replace('bg-red-500','bg-orange-500'); }
+        function adjustAlarm(dh, dm){ if(isAlarmSet)return; alarmHour=(alarmHour+dh+24)%24; alarmMin=(alarmMin+dm+60)%60; document.getElementById('alarm-hour').textContent=String(alarmHour).padStart(2,'0'); document.getElementById('alarm-min').textContent=String(alarmMin).padStart(2,'0'); }
+        function toggleAlarm(){ isAlarmSet=!isAlarmSet; const b=document.getElementById('alarm-toggle-btn'); const ind=document.getElementById('alarm-status'); if(isAlarmSet){ b.textContent="ALARM ON"; b.classList.replace('bg-gray-700','bg-orange-500'); b.classList.add('shadow-orange-500/30'); ind.classList.add('active'); document.getElementById('alarm-time-display').textContent=`${String(alarmHour).padStart(2,'0')}:${String(alarmMin).padStart(2,'0')}`; }else{ b.textContent="SET ALARM"; b.classList.replace('bg-orange-500','bg-gray-700'); b.classList.remove('shadow-orange-500/30'); ind.classList.remove('active'); } }
+        function checkAlarm(){ if(!isAlarmSet)return; const n=new Date(); if(n.getHours()===alarmHour&&n.getMinutes()===alarmMin&&n.getSeconds()===0){ triggerTimeUp("アラームの時間です。"); toggleAlarm(); } }
+        function triggerTimeUp(m){ document.getElementById('time-up-message').textContent=m; document.getElementById('time-up-modal').classList.add('active'); playAlarmSound(); }
+        function stopAlarmSound(){ document.getElementById('time-up-modal').classList.remove('active'); if(alarmInterval)clearInterval(alarmInterval); if(window.speechSynthesis)window.speechSynthesis.cancel(); }
+        function playAlarmSound(){ if(!audioCtx)initAudio(); const pb=()=>{ if(!audioCtx)return; const t=audioCtx.currentTime; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.type='square'; o.frequency.setValueAtTime(880,t); for(let i=0;i<4;i++){ const s=t+i*0.12; g.gain.setValueAtTime(0.1,s); g.gain.setValueAtTime(0,s+0.08); } o.start(t); o.stop(t+0.5); }; pb(); alarmInterval=setInterval(pb,1000); }
+        function initSwipe(){ const rc=document.getElementById('right-column'); const ccb=document.getElementById('close-calendar'); const ctb=document.getElementById('close-timer'); const nv=document.getElementById('news-view'); const cst=document.getElementById('calendar-swipe-trigger'); const ch=document.getElementById('calendar-header'); let tsx=0; let tsy=0; let tex=0; let tey=0; const th=60; 
+            window.addEventListener('wheel',e=>{ if(e.shiftKey)return; if(e.deltaY>50)document.body.classList.add('timer-open'); else if(e.deltaY<-50)document.body.classList.remove('timer-open'); },{passive:false});
+            rc.addEventListener('wheel',e=>{ if(e.shiftKey){ e.preventDefault(); const d=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY; if(d>0)rc.classList.add('show-calendar'); else if(d<0)rc.classList.remove('show-calendar'); } },{passive:false});
+            document.body.addEventListener('touchstart',e=>{ tsx=e.changedTouches[0].screenX; tsy=e.changedTouches[0].screenY; },{passive:true});
+            document.body.addEventListener('touchend',e=>{ tex=e.changedTouches[0].screenX; tey=e.changedTouches[0].screenY; const dx=tsx-tex; const dy=tsy-tey; if(Math.abs(dy)>Math.abs(dx)){ if(dy>th)document.body.classList.add('timer-open'); else if(dy<-th)document.body.classList.remove('timer-open'); } },{passive:true});
+            nv.addEventListener('touchend',e=>{ tex=e.changedTouches[0].screenX; tey=e.changedTouches[0].screenY; const dx=tsx-tex; const dy=tsy-tey; if(Math.abs(dx)>Math.abs(dy)&&dx>th)rc.classList.add('show-calendar'); },{passive:true});
+            const back=()=>{ tex=event.changedTouches[0].screenX; tey=event.changedTouches[0].screenY; const dx=tsx-tex; const dy=tsy-tey; if(Math.abs(dx)>Math.abs(dy)&&dx<-th)rc.classList.remove('show-calendar'); };
+            cst.addEventListener('touchend',back,{passive:true}); ch.addEventListener('touchend',back,{passive:true});
+            ccb.addEventListener('click',()=>rc.classList.remove('show-calendar')); ctb.addEventListener('click',()=>document.body.classList.remove('timer-open'));
         }
-
-        function resetProgressBar() {
-            const bar = document.getElementById('news-progress');
-            bar.style.transition = 'none';
-            bar.style.width = '0%';
-            
-            setTimeout(() => {
-                bar.style.transition = `width ${SLIDE_DURATION}ms linear`;
-                bar.style.width = '100%';
-            }, 50);
-        }
-
-        fetchNews();
-        setInterval(() => fetchNews(0), 900000);
-
+        function createParticles(){ const c=document.getElementById('particles'); for(let i=0;i<20;i++){ const p=document.createElement('div'); p.classList.add('particle'); p.style.width=`${Math.random()*4+1}px`; p.style.height=p.style.width; p.style.left=`${Math.random()*100}%`; p.style.animationDuration=`${Math.random()*15+10}s`; p.style.animationDelay=`${Math.random()*10}s`; c.appendChild(p); } }
     </script>
 </body>
 </html>
